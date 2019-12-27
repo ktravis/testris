@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+tags
+*.o
+.vscode/
+build/main
+*.plist
