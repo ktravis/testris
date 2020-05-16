@@ -175,10 +175,11 @@ bool openAudioDevice() {
         fprintf(stderr, "audio failure: %s\n", SDL_GetError());
         return false;
     }
-    if (hw_audio_spec.format != desired.format) {
-        fprintf(stderr, "couldn't get desired audio format\n");
-        return false;
-    }
+    // TODO(ktravis): hmmm
+    //if (hw_audio_spec.format != desired.format) {
+        //fprintf(stderr, "couldn't get desired audio format\n");
+        //return false;
+    //}
 
     return true;
 }

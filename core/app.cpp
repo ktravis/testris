@@ -25,9 +25,15 @@ bool initApp(App *app, int mode) {
             return false;
         }
 
+#ifdef __EMSCRIPTEN__
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#else
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#endif
     }
     if (mode & INIT_AUDIO) {
         debug("initializing audio");
@@ -110,6 +116,10 @@ bool anyKeyPress(InputData *in) {
         if (e.state.down) return true;
     }
     return false;
+}
+
+KeyEvent keyEvent(InputData *in, int i) {
+    return in->keys[(in->keyEventBufferOffset + i) % KEY_EVENT_BUFCOUNT];
 }
 
 void cleanupApp(App *app) {

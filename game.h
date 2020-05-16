@@ -92,6 +92,9 @@ DECLARE_SERDE(Settings);
 bool loadSettings(Settings *s, const char *file);
 bool saveSettings(Settings *s, const char *file);
 
+// TODO(ktravis): cleanup
+bool compileExtraShaders(Renderer *r);
+
 #define NUM_PIECES 7
 
 #define QUEUE_SIZE (2*2*NUM_PIECES)
@@ -129,6 +132,7 @@ struct GameState {
         bool right;
         bool down;
     } held;
+    Vec2 lastMousePos;
 
     Cell board[BOARD_HEIGHT][BOARD_WIDTH];
     int queue[QUEUE_SIZE];
@@ -137,6 +141,10 @@ struct GameState {
     int lastBlockInUse;
 
     // scene specific:
+
+    // TITLE
+    MenuContext titleMenu;
+    bool startGame;
 
     // IN_ROUND
     bool paused = false;
@@ -149,7 +157,7 @@ struct GameState {
     MenuContext options;
 };
 
-bool startGame(GameState *);
+bool startGame(GameState *, Renderer *);
 void updateGameState(GameState *st, InputData in);
 void renderGameState(Renderer *r, GameState *st);
 void renderScene(Renderer *r, GameState *st, Scene s);

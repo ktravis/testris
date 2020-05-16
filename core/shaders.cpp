@@ -22,45 +22,82 @@ void glPrintLog(GLuint id) {
     free(buf);
 }
 
-bool compileShader(GLuint *prog, const unsigned char *vs, const unsigned char *fs) {
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, (const char* const*)&vs, NULL);
-    glCompileShader(vertexShader);
+bool compileShader(ShaderHandle *h, const unsigned char *text, GLenum type) {
+    GLuint s = glCreateShader(type);
+    glShaderSource(s, 1, (const char* *)&text, NULL);
+    glCompileShader(s);
 
     GLint success = GL_FALSE;
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    glGetShaderiv(s, GL_COMPILE_STATUS, &success);
     if (success != GL_TRUE) {
-        fprintf(stderr, "Unable to compile vertex shader %d!\n", vertexShader);
-        glPrintLog(vertexShader);
+        fprintf(stderr, "Unable to compile vertex shader %d!\n", s);
+        glPrintLog(s);
+        return false;
+    }
+    *h = s;
+
+    return true;
+}
+
+void dumpUniformNames(ShaderHandle s) {
+    GLint count;
+    glGetProgramiv(s, GL_ACTIVE_UNIFORMS, &count);
+    log("shader %d has %d uniforms", s, count);
+    for (int i = 0; i < count; i++) {
+        GLint size;
+        GLenum type;
+        GLchar name[255];
+        glGetActiveUniform(s, i, sizeof(name), NULL, &size, &type, name);
+        log("  %s - %d (%d)", name, type, size);
+    }
+}
+
+bool compileShaderProgram(ShaderProgram *prog) {
+    if (prog->handle) {
+        glDeleteProgram(prog->handle);
+    }
+    prog->handle = glCreateProgram();
+    glAttachShader(prog->handle, prog->vert);
+    glAttachShader(prog->handle, prog->frag);
+    glLinkProgram(prog->handle);
+
+    GLint success = GL_FALSE;
+    glGetProgramiv(prog->handle, GL_LINK_STATUS, &success);
+    if (success != GL_TRUE) {
+        fprintf(stderr, "Error shader linking program %d\n", prog->handle);
+        glPrintLog(prog->handle);
         return false;
     }
 
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, (const char* const*)&fs, NULL);
-    glCompileShader(fragmentShader);
+    glUseProgram(prog->handle);
+    dumpUniformNames(prog->handle);
 
-    success = GL_FALSE;
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-    if (success != GL_TRUE) {
-        fprintf(stderr, "Unable to compile fragment shader %d!\n", fragmentShader);
-        glPrintLog(fragmentShader);
-        return false;
+    prog->uniforms.timeLoc = glGetUniformLocation(prog->handle, "time");
+    glUniform1f(prog->uniforms.timeLoc, 0.0f);
+
+    prog->uniforms.modelviewLoc = glGetUniformLocation(prog->handle, "modelview");
+    Mat4 modelview;
+    identity(modelview);
+    glUniformMatrix4fv(prog->uniforms.modelviewLoc, 1, GL_FALSE, (const GLfloat *)modelview);
+
+    prog->uniforms.projLoc = glGetUniformLocation(prog->handle, "proj");
+    Mat4 proj;
+    identity(proj);
+    glUniformMatrix4fv(prog->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)proj);
+
+    prog->uniforms.texLoc = glGetUniformLocation(prog->handle, "tex");
+    glUniform1i(prog->uniforms.texLoc, 0);
+
+    prog->uniforms.tintLoc = glGetUniformLocation(prog->handle, "tint");
+    glUniform4fv(prog->uniforms.tintLoc, 1, (const GLfloat *)&white);
+
+    prog->uniforms.mouseLoc = glGetUniformLocation(prog->handle, "mouse");
+    if (prog->uniforms.mouseLoc != -1) {
+        Vec2 v = {};
+        glUniform2fv(prog->uniforms.mouseLoc, 1, (const GLfloat *)&v);
     }
 
-    GLuint progID = glCreateProgram();
-    glAttachShader(progID, vertexShader);
-    glAttachShader(progID, fragmentShader);
-    glBindFragDataLocation(progID, 0, "outColor");
-    glLinkProgram(progID);
+    glUseProgram(0);
 
-    success= GL_TRUE;
-    glGetProgramiv(progID, GL_LINK_STATUS, &success);
-    if (success != GL_TRUE) {
-        fprintf(stderr, "Error shader linking program %d\n", progID);
-        glPrintLog(progID);
-        return false;
-    }
-
-    *prog = progID;
     return true;
 }

@@ -1,11 +1,11 @@
 #include "core.h"
 
 void drawLine(Renderer *r, Vec2 a, Vec2 b, Color c) {
-    useShader(r, r->defaultShader);
+    useShader(r, &r->defaultShader);
 
     VertexData points[] = {
-        (VertexData){vec4(a, 0, 1), white, vec2(0, 0)},
-        (VertexData){vec4(b, 0, 1), white, vec2(0, 0)}
+        (VertexData){vec4(a, 0, 1), vec2(0, 0)},
+        (VertexData){vec4(b, 0, 1), vec2(0, 0)}
     };
 
     Mesh m = {
@@ -24,24 +24,24 @@ void drawLine(Renderer *r, Vec2 a, Vec2 b, Color c) {
 }
 
 void drawRectOutline(Renderer *rend, Rect r, Color c, float thickness) {
-    useShader(rend, rend->defaultShader);
+    useShader(rend, &rend->defaultShader);
 
     r.x += 1;
     r.y += 1;
     r.w -= 2;
     r.h -= 2;
     VertexData points[] = {
-        (VertexData){vec4(r.pos, 0, 1), white, vec2(0, 0)},
-        (VertexData){vec4(add(r.pos, vec2(0, r.h)), 0, 1), white, vec2(0, 0)},
+        (VertexData){vec4(r.pos, 0, 1), vec2(0, 0)},
+        (VertexData){vec4(add(r.pos, vec2(0, r.h)), 0, 1), vec2(0, 0)},
 
-        (VertexData){vec4(add(r.pos, vec2(0, r.h)), 0, 1), white, vec2(0, 0)},
-        (VertexData){vec4(add(r.pos, r.box), 0, 1), white, vec2(0, 0)},
+        (VertexData){vec4(add(r.pos, vec2(0, r.h)), 0, 1), vec2(0, 0)},
+        (VertexData){vec4(add(r.pos, r.box), 0, 1), vec2(0, 0)},
 
-        (VertexData){vec4(add(r.pos, r.box), 0, 1), white, vec2(0, 0)},
-        (VertexData){vec4(add(r.pos, vec2(r.w, 0)), 0, 1), white, vec2(0, 0)},
+        (VertexData){vec4(add(r.pos, r.box), 0, 1), vec2(0, 0)},
+        (VertexData){vec4(add(r.pos, vec2(r.w, 0)), 0, 1), vec2(0, 0)},
 
-        (VertexData){vec4(add(r.pos, vec2(r.w, 0)), 0, 1), white, vec2(0, 0)},
-        (VertexData){vec4(r.pos, 0, 1), white, vec2(0, 0)}
+        (VertexData){vec4(add(r.pos, vec2(r.w, 0)), 0, 1), vec2(0, 0)},
+        (VertexData){vec4(r.pos, 0, 1), vec2(0, 0)}
     };
 
     Mesh m = {
@@ -81,7 +81,7 @@ void drawMesh(Renderer *r, Mesh *m, Vec3 pos, TextureHandle texture, DrawOpts3d 
     call.mesh = m;
     call.texture = texture;
     identity(call.uniforms.model);
-    translate(call.uniforms.model, opts.origin);
+    translate(call.uniforms.model, scaled(opts.origin, -1));
     //rotate(call.uniforms.model, opts.rotation);
     scale(call.uniforms.model, opts.scale);
     translate(call.uniforms.model, pos);
@@ -94,7 +94,7 @@ void drawMesh(Renderer *r, Mesh *m, Vec3 pos, TextureHandle texture, DrawOpts3d 
 void drawText(Renderer *r, FontAtlas *font, float x, float y, const char *text, DrawOpts2d opts) {
     Vec2 v = vec2(x, y);
 
-    useShader(r, r->defaultShader);
+    useShader(r, opts.shader ? opts.shader : &r->defaultShader);
     float xoff = 0;
     float yoff = 0;
     int vert_count = strlen(text) * 6;
@@ -113,7 +113,7 @@ void drawText(Renderer *r, FontAtlas *font, float x, float y, const char *text, 
         unsigned char u = *text;
         if (u == '\n') {
             xoff = 0;
-            yoff += 20;
+            yoff += font->mHeight + font->padding;
         } else if (u >= 32 && u < 128) {
             float xadv = 0;
             float yadv = 0;
@@ -127,6 +127,9 @@ void drawText(Renderer *r, FontAtlas *font, float x, float y, const char *text, 
             yoff += yadv;
         }
         ++text;
+    }
+    for (int i = 0; i < full_mesh.count; i++) {
+        full_mesh.data[i].y -= yoff;
     }
 
     drawMesh(r, &full_mesh, v, font->tex, opts);
@@ -144,12 +147,15 @@ void drawTextf(Renderer *r, FontAtlas *font, float x, float y, DrawOpts2d opts, 
 
 void drawTextCentered(Renderer *r, FontAtlas *font, float x, float y, const char *text, DrawOpts2d opts) {
     Vec2 dim = getTextDimensions(text, font);
-    opts.origin = scaled(dim, 0.5f);
+    // text draws from the bottom left, not the top left - so we need to shift
+    // the origin accordingly
+    opts.origin = vec2(0.5*dim.x, -0.5*dim.y);
+
     drawText(r, font, x, y, text, opts);
 }
 
 void drawTexturedQuad(Renderer *r, Rect quad, TextureHandle texture, Rect st, DrawOpts2d opts) {
-    useShader(r, r->defaultShader);
+    useShader(r, opts.shader ? opts.shader : &r->defaultShader);
 
     VertexData data[6];
     Mesh m = texturedQuadMesh(data, rect(vec2(0, 0), quad.box), st);
@@ -165,7 +171,7 @@ void drawRect(Renderer *rend, Rect r, DrawOpts2d opts) {
 }
 
 void drawRect(Renderer *rend, Rect r, Color c) {
-    DrawOpts2d opts;
+    DrawOpts2d opts = {};
     opts.tint = c;
     drawTexturedQuad(rend, r, rend->defaultTexture, rect(0, 0, 1, 1), opts);
 }

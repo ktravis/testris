@@ -38,11 +38,12 @@ void clear(Renderer *r) {
     clear(r, black);
 }
 
-inline void useShader(Renderer *r, ShaderHandle s) {
-    if (r->currentShader != s) {
+inline void useShader(Renderer *r, ShaderProgram *s) {
+    if (r->currentShader != s || r->currentShaderHandle != s->handle) {
         //flush(r);
-        glUseProgram(s);
+        glUseProgram(s->handle);
         r->currentShader = s;
+        r->currentShaderHandle = s->handle;
     }
 }
 
@@ -55,39 +56,36 @@ inline void useTexture(Renderer *r, TextureHandle t) {
     }
 }
 
-void attachProjectionMatrix(Renderer *r, Mat4 proj) {
-    useShader(r, r->defaultShader);
-    glUniformMatrix4fv(r->defaultProjLoc, 1, GL_FALSE, (const GLfloat *)proj);
-}
-
-bool setupShaders(Renderer *r) {
-    const unsigned char *defaultVertexShader;
-    const unsigned char *defaultFragShader;
-    if (!(defaultVertexShader = readFile("assets/shaders/default.vs"))) {
+bool setupDefaultShaders(Renderer *r) {
+    const unsigned char *defaultVertexShaderText = readFile("assets/shaders/default.vs");
+    if (!defaultVertexShaderText) {
         return false;
     }
-    if (!(defaultFragShader = readFile("assets/shaders/default.fs"))) {
+
+    const unsigned char *defaultFragShaderText = readFile("assets/shaders/default.fs");
+    if (!defaultFragShaderText) {
         return false;
     }
 
     // TODO: free file text
-
-    GLuint qs;
-    if (!compileShader(&qs, defaultVertexShader, defaultFragShader)) {
+    
+    if (!compileShader(&r->defaultShader.vert, defaultVertexShaderText, GL_VERTEX_SHADER)) {
+        return false;
+    }
+    if (!compileShader(&r->defaultShader.frag, defaultFragShaderText, GL_FRAGMENT_SHADER)) {
         return false;
     }
 
-    Mat4 model;
-    identity(model);
+    if (!compileShaderProgram(&r->defaultShader)) {
+        return false;
+    }
 
-    glUseProgram(qs);
-    r->defaultProjLoc = glGetUniformLocation(qs, "proj");
-    glUniformMatrix4fv(r->defaultProjLoc, 1, GL_FALSE, (const GLfloat *)r->proj);
+    // TODO(ktravis): we should instead do this stuff in the vao load which
+    // would be done in a "load mesh" routine - part of doing that means rather
+    // than generating quad vertexdata we should set transform based on desired
+    // w/h and keep the one quad mesh constant.
 
-    r->defaultModelLoc = glGetUniformLocation(qs, "model");
-    glUniformMatrix4fv(r->defaultModelLoc, 1, GL_FALSE, (const GLfloat *)model);
-
-    GLint posAttrib = glGetAttribLocation(qs, "position");
+    GLint posAttrib = glGetAttribLocation(r->defaultShader.handle, "position");
     if (posAttrib == -1) {
         printf("%s is not a valid glsl program variable\n", "position");
         return false;
@@ -95,15 +93,7 @@ bool setupShaders(Renderer *r) {
     glEnableVertexAttribArray(posAttrib);
     glVertexAttribPointer(posAttrib, 4, GL_FLOAT, GL_FALSE, sizeof(VertexData), 0);
 
-    GLint colAttrib = glGetAttribLocation(qs, "c");
-    if (colAttrib == -1) {
-        printf("%s is not a valid glsl program variable\n", "position");
-        return false;
-    }
-    glEnableVertexAttribArray(colAttrib);
-    glVertexAttribPointer(colAttrib, 4, GL_FLOAT, GL_FALSE, sizeof(VertexData), (void*)offsetof(VertexData, color));
-
-    GLint texAttrib = glGetAttribLocation(qs, "tc");
+    GLint texAttrib = glGetAttribLocation(r->defaultShader.handle, "texCoord");
     if (texAttrib == -1) {
         printf("%s is not a valid glsl program variable\n", "tc");
         return false;
@@ -111,22 +101,11 @@ bool setupShaders(Renderer *r) {
     glEnableVertexAttribArray(texAttrib);
     glVertexAttribPointer(texAttrib, 2, GL_FLOAT, GL_FALSE, sizeof(VertexData), (void*)offsetof(VertexData, tex));
 
-    glUniform1i(glGetUniformLocation(qs, "tex"), 0);
-
-    r->tintLoc = glGetUniformLocation(qs, "tint");
-    glUniform4fv(r->tintLoc, 1, (const GLfloat *)&white);
-
-    if (r->defaultShader) {
-        glDeleteProgram(r->defaultShader);
-    }
-    r->defaultShader = qs;
-
-    attachProjectionMatrix(r, r->proj);
     return true;
 }
 
 void cleanupRenderer(Renderer *r) {
-    glDeleteProgram(r->defaultShader);
+    glDeleteProgram(r->defaultShader.handle);
     glDeleteBuffers(1, &r->vbo);
     glDeleteVertexArrays(1, &r->vao);
 }
@@ -138,7 +117,6 @@ void renderToScreen(Renderer *r) {
     GLfloat clipNear = 0.0f;
     GLfloat clipFar = 10.0f;
     ortho(r->proj, 0, r->screenWidth, 0, r->screenHeight, clipNear, clipFar);
-    attachProjectionMatrix(r, r->proj);
 }
 
 bool renderToTexture(Renderer *r, TextureHandle *tex, uint32_t w, uint32_t h) {
@@ -164,7 +142,6 @@ bool renderToTexture(Renderer *r, TextureHandle *tex, uint32_t w, uint32_t h) {
     GLfloat clipNear = 0.0f;
     GLfloat clipFar = 10.0f;
     ortho(r->proj, 0, w, h, 0, clipNear, clipFar);
-    attachProjectionMatrix(r, r->proj);
 
     return true;
 }
@@ -181,12 +158,35 @@ GLenum glDrawMode(DrawMode m) {
     return GL_TRIANGLES;
 }
 
+void updateShader(ShaderProgram *s, float time, Mat4 *modelview, Mat4 *proj, TextureHandle *tex, Color *tint, Vec2 *mouse) {
+    if (time)
+        glUniform1f(s->uniforms.timeLoc, time);
+
+    if (modelview)
+        glUniformMatrix4fv(s->uniforms.modelviewLoc, 1, GL_FALSE, (const GLfloat *)*modelview);
+
+    if (proj)
+        glUniformMatrix4fv(s->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)*proj);
+
+    if (tex)
+        glUniform1i(s->uniforms.texLoc, *tex);
+
+    if (tint)
+        glUniform4fv(s->uniforms.tintLoc, 1, (const GLfloat *)tint);
+
+    if (mouse && s->uniforms.mouseLoc != -1)
+    {
+        glUniform2fv(s->uniforms.mouseLoc, 1, (const GLfloat *)mouse);
+    }
+}
+
 // TODO: group by common mesh / options and draw in batches
 void draw(Renderer *r, DrawCall call) {
+    // TODO(ktravis): mesh should have its own vbo that doesn't need to be
+    // reloaded every time?
     glBufferData(GL_ARRAY_BUFFER, call.mesh->count*sizeof(VertexData), call.mesh->data, GL_DYNAMIC_DRAW);
     useTexture(r, call.texture);
-    glUniformMatrix4fv(r->defaultModelLoc, 1, GL_FALSE, (const GLfloat *)call.uniforms.model);
-    glUniform4fv(r->tintLoc, 1, (GLfloat *)&call.uniforms.tint);
+    updateShader(r->currentShader, 0 /* TIME */, &call.uniforms.model, 0, 0, &call.uniforms.tint, 0);
     glLineWidth(call.uniforms.lineWidth);
     glDrawArrays(glDrawMode(call.mode), 0, call.mesh->count);
 }

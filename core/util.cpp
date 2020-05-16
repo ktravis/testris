@@ -74,6 +74,14 @@ bool writeFile(const char *filename, const uint8_t *b) {
     fprintf(f, "%s", b);
     fclose(f);
     free(expanded);
+//#ifdef __EMSCRIPTEN__
+    //EM_ASM(
+        //FS.syncfs(function (err) {
+            //if (err !== null)
+                //console.error(err);
+        //});
+    //);
+//#endif
     return true;
 }
 
@@ -134,8 +142,8 @@ bool loadTextureFile(const char *fname, TextureHandle *tex, int *w, int *h) {
     glBindTexture(GL_TEXTURE_2D, *tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     stbi_uc *pix = stbi_load(fname, w, h, 0, STBI_rgb_alpha);
     if (!pix) {
@@ -150,6 +158,7 @@ bool loadTextureFile(const char *fname, TextureHandle *tex, int *w, int *h) {
         }
     }
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, *w, *h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pix);
+    glBindTexture(GL_TEXTURE_2D, 0);
     stbi_image_free(pix);
     return true;
 }
