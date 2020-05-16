@@ -6,44 +6,57 @@ void loadFontAtlas(FontAtlas *font, const unsigned char *font_data, float size) 
     unsigned char temp_bitmap[512*512];
     stbtt_BakeFontBitmap(font_data, 0, size, temp_bitmap, 512, 512, 32, ATLAS_CHAR_COUNT, font->cdata); // no guarantee this fits!
 
+    unsigned char expanded[4*512*512];
+    for (int i = 0; i < 512*512; i++) {
+        expanded[4*i+0] = temp_bitmap[i];
+        expanded[4*i+1] = temp_bitmap[i];
+        expanded[4*i+2] = temp_bitmap[i];
+        expanded[4*i+3] = temp_bitmap[i];
+    }
+
     glGenTextures(1, &font->tex);
     glBindTexture(GL_TEXTURE_2D, font->tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    GLint swizzleMask[] = { GL_RED, GL_RED, GL_RED, GL_RED };
-    glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, 512,512, 0, GL_RED, GL_UNSIGNED_BYTE, temp_bitmap);
+    glTexImage2D(
+        GL_TEXTURE_2D,      // target texture
+        0,                  // level of detail (0=base)
+        GL_RGBA8,           // internal format (color component count)
+        512, 512,           // width * height
+        0,                  // border... must be 0
+        GL_RGBA,            // format of pixel data
+        GL_UNSIGNED_BYTE,   // data type of each pixel
+        expanded            // pointer to data
+    );
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    font->mHeight = getTextDimensions("M", font).y;
 }
 
 Vec2 getTextDimensions(const char *text, FontAtlas *font) {
     float w = 0;
     float h = 0;
-    float linemaxheight = 0;
     float maxwidth = 0;
     unsigned char u;
 
     while ((u = *text)) {
         text++;
         if (u == '\n') {
-            h += linemaxheight;
+            h += font->mHeight + font->padding;
             w = 0;
-            linemaxheight = 0;
         } else {
             stbtt_aligned_quad q;
             float xadv = 0;
             float yadv = 0;
             stbtt_GetBakedQuad(font->cdata, 512,512, u-32, &xadv,&yadv,&q,1);//1=opengl & d3d10+,0=d3d9
             w += xadv;
-            if ((q.y1-q.y0+yadv) > linemaxheight) {
-                linemaxheight = (q.y1-q.y0+yadv);
-            }
             if (w > maxwidth) {
                 maxwidth = w;
             }
         }
     }
-    h += linemaxheight;
+    h += font->mHeight + font->padding;
     return vec2(maxwidth, h);
 }
 

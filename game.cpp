@@ -14,11 +14,14 @@
 // - sounds
 // - music
 
-FontAtlas ubuntu_m12;
+FontAtlas ubuntu_m16;
 FontAtlas ubuntu_m32;
 FontAtlas mono_m18;
 
 int32_t sound_ready;
+
+ShaderProgram titleShader;
+ShaderProgram titleBGShader;
 
 Piece faller;
 
@@ -183,6 +186,26 @@ hooray:
     return true;
 }
 
+DEFINE_BUTTON(MainMenu_StartGameButton);
+DEFINE_BUTTON(MainMenu_OptionsButton);
+DEFINE_BUTTON(MainMenu_HighScoresButton);
+DEFINE_BUTTON(MainMenu_QuitButton);
+
+void initTitleMenu(GameState *st) {
+    MenuContext *menu = &st->titleMenu;
+    menu->font = &ubuntu_m32;
+    menu->lineHeight = 48;
+    menu->lines = 0;
+    menu->alignWidth = 24;
+    menu->topCenter = vec2(st->width/2, st->height/2 + 140);
+    addMenuLine(menu, (char *)"start a game", MainMenu_StartGameButton);
+    addMenuLine(menu, (char *)"options", MainMenu_OptionsButton);
+    addMenuLine(menu, (char *)"high scores", MainMenu_HighScoresButton);
+    addMenuLine(menu, (char *)"quit", MainMenu_QuitButton);
+
+    menu->hotIndex = 1;
+}
+
 void initOptionsMenu(GameState *st) {
     MenuContext *menu = &st->options;
     menu->font = &mono_m18;
@@ -243,13 +266,53 @@ bool saveSettings(Settings *s, const char *filename) {
     return result;
 }
 
-bool startGame(GameState *st) {
+bool compileExtraShaders(Renderer *r) {
+    uint8_t *shaderBuf = readFile("assets/shaders/title.vs");
+    if (!shaderBuf) {
+        return false;
+    }
+
+    if (!compileShader(&titleShader.vert, shaderBuf, GL_VERTEX_SHADER)) {
+        return false;
+    }
+    shaderBuf = readFile("assets/shaders/title.fs");
+    if (!shaderBuf) {
+        return false;
+    }
+
+    if (!compileShader(&titleShader.frag, shaderBuf, GL_FRAGMENT_SHADER)) {
+        return false;
+    }
+
+    if (!compileShaderProgram(&titleShader)) {
+        return false;
+    }
+
+    shaderBuf = readFile("assets/shaders/bg.fs");
+    if (!shaderBuf) {
+        return false;
+    }
+
+    titleBGShader.vert = r->defaultShader.vert;
+    if (!compileShader(&titleBGShader.frag, shaderBuf, GL_FRAGMENT_SHADER)) {
+        return false;
+    }
+
+    if (!compileShaderProgram(&titleBGShader)) {
+        return false;
+    }
+    Vec2 dim = vec2(r->screenWidth, r->screenHeight);
+    glUniform2fv(glGetUniformLocation(titleBGShader.handle, "dim"), 1, (GLfloat*)&dim);
+    return true;
+}
+
+bool startGame(GameState *st, Renderer *r) {
     uint8_t *ttf_buffer;
     if (!(ttf_buffer = readFile("./assets/fonts/Ubuntu-M.ttf"))) {
         return false;
     }
     loadFontAtlas(&ubuntu_m32, ttf_buffer, 32.0f);
-    loadFontAtlas(&ubuntu_m12, ttf_buffer, 12.0f);
+    loadFontAtlas(&ubuntu_m16, ttf_buffer, 16.0f);
     free(ttf_buffer);
     
     if (!(ttf_buffer = readFile("./assets/fonts/DejaVuSansMono-Bold.ttf"))) {
@@ -258,7 +321,7 @@ bool startGame(GameState *st) {
     loadFontAtlas(&mono_m18, ttf_buffer, 18.0f);
     free(ttf_buffer);
 
-    sound_ready = loadAudioAndConvert("assets/sounds/ready.wav");
+    sound_ready = loadAudioAndConvert("./assets/sounds/ready.wav");
     if (sound_ready == -1) { return false; }
 
     GameState init = {};
@@ -269,7 +332,9 @@ bool startGame(GameState *st) {
 
     if (!loadSettings(&st->settings, "~/.testris.conf")) {
         log("settings not found, saving defaults");
-        saveSettings(&st->settings, "~/.testris.conf");
+        if (!saveSettings(&st->settings, "~/.testris.conf")) {
+            log("settings save failed");
+        }
     }
 
     st->scenes[st->currentScene] = TITLE;
@@ -277,7 +342,11 @@ bool startGame(GameState *st) {
     //int32_t sound_hiscore = loadAudioAndConvert("assets/sounds/hiscore.wav");
     //if (sound_hiscore == -1) { return NULL; }
     
+    initTitleMenu(st);
     initOptionsMenu(st);
+
+    if (!compileExtraShaders(r))
+        return false;
 
     return true;
 }
@@ -625,7 +694,7 @@ void renderGhost(Renderer *r, GameState *st) {
 void renderGameOver(Renderer *r, GameState *st) {
     drawTextCentered(r, &ubuntu_m32, st->width/2, st->height/2, "OOPS");
 
-    drawTextCentered(r, &ubuntu_m12, st->width/2, st->height/2+128, "( r to restart )");
+    drawTextCentered(r, &ubuntu_m16, st->width/2, st->height/2+128, "( r to restart )");
 }
 
 void renderScore(Renderer *r, GameState *st) {
@@ -700,8 +769,18 @@ void renderGameState(Renderer *r, GameState *st) {
 }
 
 void updateTitle(GameState *st, InputData in) {
-    if (anyKeyPress(&in))
+    MenuButton *btn = updateMenu(&st->titleMenu, in);
+    if (btn == MainMenu_StartGameButton) {
         transitionStartRound(st);
+    } else if (btn == MainMenu_OptionsButton) {
+        // TODO(ktravis): would like to do this instead, but it doesn't "push
+        // scene", so escaping from the options menu crashes
+        //transition(st, Transition::CHECKER_IN_OUT, OPTIONS, 1500);
+        pushScene(st, OPTIONS);
+    } else if (btn == MainMenu_HighScoresButton) {
+    } else if (btn == MainMenu_QuitButton) {
+        st->exitNow = true;
+    }
 }
 
 void renderTitle(Renderer *r, GameState *st) {
@@ -719,17 +798,23 @@ void renderTitle(Renderer *r, GameState *st) {
         " M@@@:   i@@@@V  :@@@@V    M@@@:  M@.     V@.  :@@@@V \n"
         "                    ..                           ..   ";
 
+    DrawOpts2d bgOpts = {};
+    bgOpts.shader = &titleBGShader;
+    drawRect(r, rect(0, 0, r->screenWidth, r->screenHeight), bgOpts);
+
     const int N = 6 * sizeof(title)/sizeof(char);
     VertexData vbuf[N];
 
-    static float rot = 0;
-    rot += 0.5;
-
     DrawOpts2d opts = {};
     opts.meshBuffer = Mesh{.count = N, .data = vbuf};
+    opts.shader = &titleShader;
 
-    drawTextCentered(r, &mono_m18, r->screenWidth/2, r->screenHeight/2 - 100, title, opts);
-    drawTextCentered(r, &ubuntu_m12, r->screenWidth/2, r->screenHeight/2 + 140, "( press whatever )");
+    drawTextCentered(r, &mono_m18, r->screenWidth/2, r->screenHeight/2 - 150, title, opts);
+    //Vec2 dim = getTextDimensions(title, &mono_m18);
+    //opts.origin.x = dim.x / 2;
+    //opts.origin.y = -dim.y / 2;
+    //drawText(r, &mono_m18, r->screenWidth/2, 0, title, opts);
+    drawMenu(r, &st->titleMenu, defaultHotOpts(st->t));
 }
 
 float moveRate = 12.0f;
@@ -742,7 +827,7 @@ void gameOver(GameState *st) {
 
 void updateInRound(GameState *st, InputData in) {
     for (int i = 0; i < in.numKeyEvents; i++) {
-        KeyEvent e = in.keys[(in.keyEventBufferOffset + i) % KEY_EVENT_BUFCOUNT];
+        KeyEvent e = keyEvent(&in, i);
         if (e.state.down) {
             if (e.key == st->settings.controls.mute) {
                 toggleMute();
@@ -897,7 +982,7 @@ void renderInRound(Renderer *r, GameState *st) {
 
 void updateGameOver(GameState *st, InputData in) {
     for (int i = 0; i < in.numKeyEvents; i++) {
-        KeyEvent e = in.keys[(in.keyEventBufferOffset + i) % KEY_EVENT_BUFCOUNT];
+        KeyEvent e = keyEvent(&in, i);
         if (!e.state.down)
             continue;
         switch (e.key) {
@@ -909,74 +994,30 @@ void updateGameOver(GameState *st, InputData in) {
 }
 
 void updateOptions(GameState *st, InputData in) {
-    MenuContext *ctx = &st->options;
-    if (ctx->interaction == NONE && in.mouseMoved) {
-        Vec2 pos = ctx->topCenter;
-        for (int i = 0; i < array_len(ctx->lines); i++) {
-            MenuLine *item = &ctx->lines[i];
-            if (item->type == HEADING) {
+    if (st->options.interaction != KEYBINDING) {
+        for (int i = 0; i < in.numKeyEvents; i++) {
+            KeyEvent e = keyEvent(&in, i);
+            if (!e.state.down)
                 continue;
-            }
-            Rect dim = menuLineDimensions(ctx, *item);
-            dim.x = pos.x - dim.w/2;
-            dim.y = pos.y + i*ctx->lineHeight - dim.h;
-            if (contains(dim, in.mouse)) {
-                ctx->hotIndex = i;
-                break;
-            }
-        }
-    }
 
-    MenuLine *item = 0;
-    if (ctx->hotIndex != -1) item = &ctx->lines[ctx->hotIndex];
-
-    if (item && in.lmb.down) {
-        menuInteract(ctx, item);
-    }
-    for (int i = 0; i < in.numKeyEvents; i++) {
-        KeyEvent e = in.keys[(in.keyEventBufferOffset + i) % KEY_EVENT_BUFCOUNT];
-        if (!e.state.down)
-            continue;
-
-        switch (ctx->interaction) {
-        case KEYBINDING:
-            {
-                assert(item);
-                if (e.key != SDLK_ESCAPE) {
-                    *item->key.current = e.key;
-                }
-                ctx->interaction = NONE;
-                item->key.waiting = false;
+            switch (e.key) {
+            case SDLK_ESCAPE:
+                popScene(st);
                 return;
-            } break;
-        default: break;
-        }
-
-        switch (e.key) {
-        case SDLK_ESCAPE:
-            popScene(st);
-            return;
-        case SDLK_UP:
-            prevHotLine(ctx);
-            break;
-        case SDLK_DOWN:
-            nextHotLine(ctx);
-            break;
-        case SDLK_RETURN:
-            menuInteract(ctx, item);
-            break;
+            }
         }
     }
+    updateMenu(&st->options, in);
     return;
 }
 
 void renderOptions(Renderer *r, GameState *st) {
-    DrawOpts2d hotOpts = {};
-    float z = 1.05f + 0.05f * cos(st->t/200);
-    hotOpts.tint = red;
-    hotOpts.scale.x = z;
-    hotOpts.scale.y = z;
-    drawMenu(r, &st->options, hotOpts);
+    drawMenu(r, &st->options, defaultHotOpts(st->t));
+
+    // draw help text
+    DrawOpts2d opts = {};
+    opts.tint.r = opts.tint.g = opts.tint.b = 0.65;
+    drawTextCentered(r, st->options.font, r->screenWidth/2, r->screenHeight - 2*st->options.lineHeight, "arrow keys + enter / mouse + click", opts);
 }
 
 void renderTransition(Renderer *r, GameState *st) {
@@ -1078,6 +1119,7 @@ void renderTransition(Renderer *r, GameState *st) {
 }
 
 void updateScene(GameState *st, InputData in, Scene s) {
+    st->lastMousePos = in.mouse;
     switch (s) {
     case IN_ROUND:
         updateInRound(st, in);
@@ -1095,6 +1137,18 @@ void updateScene(GameState *st, InputData in, Scene s) {
 }
 
 void renderScene(Renderer *r, GameState *st, Scene s) {
+    // I don't like this, the time should be in the renderer so it can be
+    // updated all at once (once the shader is bound, also);
+    // really would like to refactor the uniforms generally as well
+    useShader(r, &titleShader);
+    updateShader(&titleShader, st->t, 0, &r->proj, 0, 0, &st->lastMousePos);
+
+    useShader(r, &titleBGShader);
+    updateShader(&titleBGShader, st->t, 0, &r->proj, 0, 0, 0);
+
+    useShader(r, &r->defaultShader);
+    updateShader(r->currentShader, st->t, 0, &r->proj, 0, 0, &st->lastMousePos);
+
     switch (s) {
     case IN_ROUND:
         renderInRound(r, st);

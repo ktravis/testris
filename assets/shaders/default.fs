@@ -1,11 +1,13 @@
-#version 140
+#version 300 es
+precision highp float;
 
-varying vec4 color;
-varying vec2 texcoord;
+in vec2 texcoord;
 
 uniform vec4 tint;
 uniform sampler2D tex;
 
+out vec4 fragmentColor;
+
 void main() {
-   gl_FragData[0] = tint * color * texture(tex, texcoord);
+   fragmentColor = tint * texture(tex, texcoord);
 }

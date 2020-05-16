@@ -1,11 +1,11 @@
 #include "core.h"
 
-Color white = {1.f, 1.f, 1.f, 1.f};
-Color red = {1.f, 0.f, 0.f, 1.f};
-Color green = {0.f, 1.f, 0.f, 1.f};
-Color blue = {0.f, 0.f, 1.f, 1.f};
-Color grey = {0.3f, 0.3f, 0.3f, 1.f};
-Color black = {0.f, 0.f, 0.f, 1.f};
+const Color white = {1.f, 1.f, 1.f, 1.f};
+const Color red = {1.f, 0.f, 0.f, 1.f};
+const Color green = {0.f, 1.f, 0.f, 1.f};
+const Color blue = {0.f, 0.f, 1.f, 1.f};
+const Color grey = {0.3f, 0.3f, 0.3f, 1.f};
+const Color black = {0.f, 0.f, 0.f, 1.f};
 
 Color hex(uint32_t d) {
     Color c;

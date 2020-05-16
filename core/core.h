@@ -1,6 +1,7 @@
 #ifndef CORE_H
 #define CORE_H
 
+#include <cstdlib>
 #include <ctime>
 #include <cmath>
 #include <cerrno>
@@ -13,7 +14,14 @@
 #include <poll.h>
 
 #define GL3_PROTOTYPES 1
+#define GL_GLEXT_PROTOTYPES
+
 #include <GL/glew.h>
+#ifdef __EMSCRIPTEN__
+#   include "emscripten.h"
+#else
+#endif
+
 #include <SDL2/SDL.h>
 
 #ifdef CORE_IMPL
@@ -143,6 +151,7 @@ struct InputData {
     KeyEvent keys[KEY_EVENT_BUFCOUNT];
 };
 
+KeyEvent keyEvent(InputData *in, int i);
 bool anyKeyPress(InputData *in);
 
 // matrix.cpp
@@ -183,12 +192,12 @@ struct Color {
 Color hex(uint32_t d);
 Color multiply(Color c, float f);
 
-extern Color white;
-extern Color red;
-extern Color grey;
-extern Color green;
-extern Color blue;
-extern Color black;
+const extern Color white;
+const extern Color red;
+const extern Color grey;
+const extern Color green;
+const extern Color blue;
+const extern Color black;
 
 // util.cpp
 //
@@ -270,11 +279,16 @@ bool _deserializeFields(uint8_t *buf, int n, SerDeField *fields);
 // text.cpp
 //
 
+// TODO(ktravis): probably want a Text object that can contain things like
+// alignment
+
 #define ATLAS_CHAR_COUNT 96
 struct FontAtlas {
     stbtt_fontinfo info;
     stbtt_bakedchar cdata[ATLAS_CHAR_COUNT]; // ASCII 32..126 is 95 glyphs
     GLuint tex;
+    float mHeight;
+    float padding = 10.0f;
 };
 
 void loadFontAtlas(FontAtlas *font, const unsigned char *font_data, float size);
@@ -322,9 +336,30 @@ void cleanupAudio();
 
 // shaders.cpp
 //
+
+typedef GLuint ShaderHandle;
+typedef GLuint ShaderProgramHandle;
+
+struct ShaderProgram {
+    ShaderProgramHandle handle = 0;
+
+    ShaderHandle vert = 0;
+    ShaderHandle frag = 0;
+
+    struct {
+        GLint timeLoc;
+        GLint modelviewLoc;
+        GLint projLoc;
+        GLint texLoc;
+        GLint tintLoc;
+        GLint mouseLoc;
+    } uniforms;
+}; 
+
 void printShaderLog(GLuint shader);
 void printProgramLog(GLuint program);
-bool compileShader(GLuint *prog, const unsigned char *vs, const unsigned char *fs);
+bool compileShader(ShaderHandle *h, const unsigned char *text, GLenum type);
+bool compileShaderProgram(ShaderProgram *prog);
 
 // mesh.cpp
 //
@@ -337,15 +372,6 @@ struct VertexData {
             float y;
             float z;
             float w;
-        };
-    };
-    union {
-        Color color;
-        struct {
-            float r;
-            float g;
-            float b;
-            float a;
         };
     };
     union {
@@ -369,7 +395,6 @@ Mesh texturedQuadMesh(VertexData data[6], Rect st);
 // renderer.cpp
 //
 
-typedef GLuint ShaderHandle;
 typedef GLuint TextureHandle;
 
 enum DrawMode {
@@ -396,6 +421,7 @@ struct DrawOpts2d {
     Rect texCoords = {.pos= {0}, .box= {1, 1}};
     float rotation = 0.0f;
     Color tint = white;
+    ShaderProgram *shader = NULL;
     Mesh meshBuffer = {};
 };
 
@@ -414,13 +440,9 @@ struct Renderer {
 
     Mat4 proj;
 
-    ShaderHandle currentShader;
-    ShaderHandle defaultShader;
-    GLint defaultColorLoc;
-    GLint defaultProjLoc;
-    GLint defaultModelLoc;
-    GLint tintLoc;
-    GLint texModLoc;
+    ShaderHandle currentShaderHandle = 0;
+    ShaderProgram *currentShader = NULL;
+    ShaderProgram defaultShader = {};
 
     GLuint vao;
     GLuint vbo;
@@ -434,13 +456,15 @@ GLenum glDrawMode(DrawMode m);
 void initRenderer(Renderer *r, uint32_t w, uint32_t h);
 void clear(Renderer *r);
 void clear(Renderer *r, Color c);
-void useShader(Renderer *r, ShaderHandle s);
+void useShader(Renderer *r, ShaderProgram *s);
 void setupProjection(Renderer *r, Mat4 proj);
-bool setupShaders(Renderer *r);
+bool setupDefaultShaders(Renderer *r);
 void cleanupRenderer(Renderer *r);
 void renderToScreen(Renderer *r);
 bool renderToTexture(Renderer *r, TextureHandle *tex, uint32_t w, uint32_t h);
 void draw(Renderer *r, DrawCall call);
+
+void updateShader(ShaderProgram *s, float time, Mat4 *modelview, Mat4 *proj, TextureHandle *tex, Color *tint, Vec2 *mouse);
 
 // draw.cpp
 //
@@ -518,6 +542,8 @@ typedef int AssetID;
 // watcher.cpp
 //
 
+#ifndef __EMSCRIPTEN__
+
 #define EVENT_SIZE (sizeof (struct inotify_event))
 #define EVENT_BUF_LEN (1024 * (EVENT_SIZE + 16))
 
@@ -535,6 +561,8 @@ bool checkWatches(Watcher *w, int ms);
 bool wait(Watcher *w);
 bool updated(Watcher *w, int i);
 void cleanupWatcher(Watcher *w);
+
+#endif
 
 // window.cpp
 //
@@ -560,7 +588,15 @@ enum MenuItemType {
     HEADING,
     TOGGLE_VALUE,
     KEYBINDING_VALUE,
+    BUTTON,
 };
+
+// TODO(ktravis): "modal" menus that have multiple stages would be good
+
+// TODO(ktravis): maybe instead this should be an integer that increases 
+struct MenuButton {};
+
+#define DEFINE_BUTTON(B) MenuButton _zz_##B; MenuButton *B = &_zz_##B
 
 struct MenuLine {
     MenuItemType type;
@@ -572,7 +608,13 @@ struct MenuLine {
             bool waiting;
             SDL_Keycode *current;
         } key;
+        MenuButton *btn;
     };
+};
+
+enum TextAlignment {
+    CENTER,
+    TOPLEFT,
 };
 
 struct MenuContext {
@@ -585,19 +627,24 @@ struct MenuContext {
     // TODO: calculate this default from the font
     float lineHeight = 20.0f;
     int alignWidth = -1;
+    TextAlignment alignment = TextAlignment::CENTER;
+    //TextAlignment alignment = TextAlignment::TOPLEFT;
 };
 
 MenuLine *addMenuLine(MenuContext *ctx, MenuItemType t, char *label);
 MenuLine *addMenuLine(MenuContext *ctx, char *label);
 MenuLine *addMenuLine(MenuContext *ctx, char *label, bool *b);
 MenuLine *addMenuLine(MenuContext *ctx, char *label, SDL_Keycode *key);
+MenuLine *addMenuLine(MenuContext *ctx, char *label, MenuButton *btn);
 
 void menuLineText(MenuContext *ctx, char *buf, int n, MenuLine item);
-Rect menuLineDimensions(MenuContext *ctx, MenuLine item);
+Rect menuLineDimensions(MenuContext *ctx, MenuLine item, Vec2 pos);
 int prevHotLine(MenuContext *ctx);
 int nextHotLine(MenuContext *ctx);
-void menuInteract(MenuContext *ctx, MenuLine *item);
+MenuButton *menuInteract(MenuContext *ctx, MenuLine *item);
 void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts);
+MenuButton *updateMenu(MenuContext *ctx, InputData in);
+DrawOpts2d defaultHotOpts(float t);
 
 // app.cpp
 //
@@ -642,7 +689,9 @@ void cleanup(App *app);
 #include "text.cpp"
 #include "sprites.cpp"
 #include "window.cpp"
-#include "watcher.cpp"
+#ifndef __EMSCRIPTEN__
+#   include "watcher.cpp"
+#endif
 #include "menu.cpp"
 #include "app.cpp"
 #endif // CORE_IMPL

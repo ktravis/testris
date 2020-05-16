@@ -25,10 +25,17 @@ MenuLine *addMenuLine(MenuContext *ctx, char *label, SDL_Keycode *key) {
     return l;
 }
 
+MenuLine *addMenuLine(MenuContext *ctx, char *label, MenuButton *btn) {
+    MenuLine *l = addMenuLine(ctx, BUTTON, label);
+    l->btn = btn;
+    return l;
+}
+
 void menuLineText(MenuContext *ctx, char *buf, int n, MenuLine item) {
     int alignWidth = ctx->alignWidth;
     const char *pad = "................................................";
     switch (item.type) {
+    case BUTTON: // fallthrough
     case HEADING:
     {
         snprintf(buf, n, "%s", item.label);
@@ -58,13 +65,23 @@ void menuLineText(MenuContext *ctx, char *buf, int n, MenuLine item) {
     }
 }
 
-Rect menuLineDimensions(MenuContext *ctx, MenuLine item) {
+Rect menuLineDimensions(MenuContext *ctx, MenuLine item, Vec2 pos) {
     Rect r;
     r.x = 0;
     r.y = 0;
     char s[255];
     menuLineText(ctx, s, sizeof(s), item);
     r.box = getTextDimensions(s, ctx->font);
+    r.pos = pos;
+    switch (ctx->alignment) {
+    case TextAlignment::CENTER:
+        r.x -= r.w/2;
+        r.y -= r.h/2;
+        break;
+    case TextAlignment::TOPLEFT:
+        //r.y -= r.h;
+        break;
+    }
     return r;
 }
 
@@ -94,10 +111,12 @@ int nextHotLine(MenuContext *ctx) {
     return ctx->hotIndex;
 }
 
-void menuInteract(MenuContext *ctx, MenuLine *item) {
+MenuButton *menuInteract(MenuContext *ctx, MenuLine *item) {
     ctx->interaction = NONE;
     if (item) {
         switch (item->type) {
+        case BUTTON:
+            return item->btn;
         case TOGGLE_VALUE:
             *item->toggle = !*item->toggle;
             break;
@@ -109,6 +128,73 @@ void menuInteract(MenuContext *ctx, MenuLine *item) {
             assert(false);
         }
     }
+    return 0;
+}
+
+DrawOpts2d defaultHotOpts(float t) {
+    DrawOpts2d opts = {};
+    float z = 1.05f + 0.05f * cos(t/200);
+    opts.tint = red;
+    opts.scale.x = z;
+    opts.scale.y = z;
+    return opts;
+}
+
+MenuButton *updateMenu(MenuContext *ctx, InputData in) {
+    if (ctx->interaction == NONE && in.mouseMoved) {
+        ctx->hotIndex = -1;
+        Vec2 pos = ctx->topCenter;
+        for (int i = 0; i < array_len(ctx->lines); i++) {
+            pos.y = ctx->topCenter.y + i * ctx->lineHeight;
+            MenuLine *item = &ctx->lines[i];
+            if (item->type == HEADING) {
+                continue;
+            }
+            Rect dim = menuLineDimensions(ctx, *item, pos);
+            if (contains(dim, in.mouse)) {
+                ctx->hotIndex = i;
+                break;
+            }
+        }
+    }
+
+    MenuLine *item = 0;
+    if (ctx->hotIndex != -1) item = &ctx->lines[ctx->hotIndex];
+
+    if (item && in.lmb.down) {
+        return menuInteract(ctx, item);
+    }
+    for (int i = 0; i < in.numKeyEvents; i++) {
+        KeyEvent e = in.keys[(in.keyEventBufferOffset + i) % KEY_EVENT_BUFCOUNT];
+        if (!e.state.down)
+            continue;
+
+        switch (ctx->interaction) {
+        case KEYBINDING:
+            {
+                assert(item);
+                if (e.key != SDLK_ESCAPE) {
+                    *item->key.current = e.key;
+                }
+                ctx->interaction = NONE;
+                item->key.waiting = false;
+                return 0;
+            } break;
+        default: break;
+        }
+
+        switch (e.key) {
+        case SDLK_UP:
+            prevHotLine(ctx);
+            break;
+        case SDLK_DOWN:
+            nextHotLine(ctx);
+            break;
+        case SDLK_RETURN:
+            return menuInteract(ctx, item);
+        }
+    }
+    return 0;
 }
 
 void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts) {
@@ -121,13 +207,18 @@ void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts) {
         char s[255];
         menuLineText(ctx, s, sizeof(s), ctx->lines[i]);
 
-        Vec2 box = getTextDimensions(s, ctx->font);
-        Rect dim;
-        dim.box = box;
-        dim.x = pos.x - dim.w/2;
-        dim.y = pos.y - dim.h;
-        drawRectOutline(r, dim, red);
-        drawTextCentered(r, ctx->font, pos.x, pos.y, s, hot ? hotOpts : opts);
+        // debug box
+        //Rect dim = menuLineDimensions(ctx, ctx->lines[i], pos);
+        //drawRectOutline(r, dim, red);
+
+        switch (ctx->alignment) {
+        case TextAlignment::CENTER:
+            drawTextCentered(r, ctx->font, pos.x, pos.y, s, hot ? hotOpts : opts);
+            break;
+        case TextAlignment::TOPLEFT:
+            drawText(r, ctx->font, pos.x, pos.y, s, hot ? hotOpts : opts);
+            break;
+        }
         pos.y += ctx->lineHeight; 
     }
 }
