@@ -215,6 +215,7 @@ uint8_t *eatStringUntil(uint8_t **s, uint8_t c);
 void trimTrailingSpaces(uint8_t **s);
 float randf(float max);
 int randn(int max);
+bool bytesEqual(char *a, char *b, int n);
 
 void vlog(const char *msg, va_list);
 void log(const char *msg, ...);
@@ -224,6 +225,10 @@ void debug(const char *msg, ...);
 #else
 #define debug(msg, ...)
 #endif
+
+#define EQUAL(a, b) \
+    ( sizeof(a) == sizeof(b) && \
+      bytesEqual((char*)&a, (char*)&b, sizeof(a)))
 
 // serde.cpp
 //

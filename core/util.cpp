@@ -123,7 +123,7 @@ void trimTrailingSpaces(uint8_t **s) {
     }
     uint8_t c;
     while (end > start) {
-        c = *end;
+        c = *(end-1);
         if (c && c != ' ' && c != '\t' && c != '\n') {
             *end = '\0';
             return;
@@ -196,4 +196,11 @@ float randf(float max) {
 
 int randn(int max) {
     return rand()%max;
+}
+
+bool bytesEqual(char *a, char *b, int n) {
+    for (int i = 0; i < n; i++) {
+        if (a[i] != b[i]) return false;
+    }
+    return true;
 }

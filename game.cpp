@@ -835,25 +835,12 @@ void updateInRound(GameState *st, InputData in) {
                 st->paused = !st->paused;
             } else {
                 switch (e.key) {
-                case SDLK_1:
-                    //playSound(sound_ready);
-                    break;
-                case SDLK_o:
-                    pushScene(st, OPTIONS);
-                    break;
-                case SDLK_q:
-                    gameOver(st);
-                    return;
                 case SDLK_r:
                     // TODO: only if gameOver
                     transitionStartRound(st);
                     return;
-                case SDLK_l:
-                    faller.type = (faller.type + 1) % NUM_PIECES;
-                    break;
                 case SDLK_ESCAPE:
-                    st->paused = false;
-                    break;
+                    return pushScene(st, OPTIONS);
                 }
             }
             if (st->paused) continue;
@@ -1007,7 +994,13 @@ void updateOptions(GameState *st, InputData in) {
             }
         }
     }
+    Settings last = st->settings;
     updateMenu(&st->options, in);
+    if (!EQUAL(st->settings, last)) {
+        if (!saveSettings(&st->settings, "~/.testris.conf")) {
+            log("settings save failed");
+        }
+    }
     return;
 }
 
