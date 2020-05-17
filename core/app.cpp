@@ -69,16 +69,35 @@ InputData step(App *app) {
         case SDL_QUIT:
             in.quit = true;
             break;
+        case SDL_FINGERDOWN:
+            in.lmb.down = true;
+            // TODO(ktravis): only "move" if it's a delta bigger than we expect
+            in.mouseMoved = true;
+            in.mouse = vec2(app->width*event.tfinger.x, app->height*event.tfinger.y);
+            in.deltaMouse = sub(in.mouse, app->lastInput.mouse);
+            break;
         case SDL_MOUSEBUTTONDOWN:
             if(event.button.button == 1) {
                 in.lmb.down = true;
             }
+            break;
+        case SDL_FINGERUP:
+            in.lmb.up = true;
+            // TODO(ktravis): only "move" if it's a delta bigger than we expect
+            in.mouseMoved = true;
+            in.mouse = vec2(app->width*event.tfinger.x, app->height*event.tfinger.y);
+            in.deltaMouse = sub(in.mouse, app->lastInput.mouse);
             break;
         case SDL_MOUSEBUTTONUP:
             if(event.button.button == 1) {
                 in.lmb.up = true;
             }
             // TODO: rmb
+            break;
+        case SDL_FINGERMOTION:
+            in.mouseMoved = true;
+            in.mouse = vec2(app->width*event.tfinger.x, app->height*event.tfinger.y);
+            in.deltaMouse = sub(in.mouse, app->lastInput.mouse);
             break;
         case SDL_MOUSEMOTION:
             in.mouseMoved = true;
@@ -104,6 +123,8 @@ InputData step(App *app) {
             break;
         case SDL_WINDOWEVENT_SIZE_CHANGED:
             break;
+        default:
+            log("unhandled event type %d", event.type);
         }
     }
     app->lastInput = in;

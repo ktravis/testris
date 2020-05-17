@@ -161,7 +161,7 @@ MenuButton *updateMenu(MenuContext *ctx, InputData in) {
     MenuLine *item = 0;
     if (ctx->hotIndex != -1) item = &ctx->lines[ctx->hotIndex];
 
-    if (item && in.lmb.down) {
+    if (item && in.lmb.up) {
         return menuInteract(ctx, item);
     }
     for (int i = 0; i < in.numKeyEvents; i++) {
