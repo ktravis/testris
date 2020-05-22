@@ -123,8 +123,7 @@ InputData step(App *app) {
             break;
         case SDL_WINDOWEVENT_SIZE_CHANGED:
             break;
-        default:
-            log("unhandled event type %d", event.type);
+        //default:
         }
     }
     app->lastInput = in;

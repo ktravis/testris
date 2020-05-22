@@ -3,6 +3,10 @@
 void loadFontAtlas(FontAtlas *font, const unsigned char *font_data, float size) {
     stbtt_InitFont(&font->info, font_data, stbtt_GetFontOffsetForIndex(font_data,0));
 
+    rebakeFont(font, font_data, size);
+}
+
+void rebakeFont(FontAtlas *font, const unsigned char *font_data, float size) {
     unsigned char temp_bitmap[512*512];
     stbtt_BakeFontBitmap(font_data, 0, size, temp_bitmap, 512, 512, 32, ATLAS_CHAR_COUNT, font->cdata); // no guarantee this fits!
 
@@ -31,7 +35,12 @@ void loadFontAtlas(FontAtlas *font, const unsigned char *font_data, float size) 
     );
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    font->mHeight = getTextDimensions("M", font).y;
+    font->size = size;
+
+    font->scale = stbtt_ScaleForPixelHeight(&font->info, size);
+    int asc, desc, gap;
+    stbtt_GetFontVMetrics(&font->info, &asc, &desc, &gap);
+    font->lineHeight = font->scale * (float)(asc - desc + gap);
 }
 
 Vec2 getTextDimensions(const char *text, FontAtlas *font) {
@@ -43,7 +52,7 @@ Vec2 getTextDimensions(const char *text, FontAtlas *font) {
     while ((u = *text)) {
         text++;
         if (u == '\n') {
-            h += font->mHeight + font->padding;
+            h += font->lineHeight * font->lineHeightScale;
             w = 0;
         } else {
             stbtt_aligned_quad q;
@@ -56,7 +65,7 @@ Vec2 getTextDimensions(const char *text, FontAtlas *font) {
             }
         }
     }
-    h += font->mHeight + font->padding;
+    h += font->lineHeight * font->lineHeightScale;
     return vec2(maxwidth, h);
 }
 

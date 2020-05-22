@@ -145,7 +145,7 @@ MenuButton *updateMenu(MenuContext *ctx, InputData in) {
         ctx->hotIndex = -1;
         Vec2 pos = ctx->topCenter;
         for (int i = 0; i < array_len(ctx->lines); i++) {
-            pos.y = ctx->topCenter.y + i * ctx->lineHeight;
+            pos.y = ctx->topCenter.y + i * (ctx->font->lineHeight*ctx->font->lineHeightScale);
             MenuLine *item = &ctx->lines[i];
             if (item->type == HEADING) {
                 continue;
@@ -219,6 +219,6 @@ void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts) {
             drawText(r, ctx->font, pos.x, pos.y, s, hot ? hotOpts : opts);
             break;
         }
-        pos.y += ctx->lineHeight; 
+        pos.y += ctx->font->lineHeight*ctx->font->lineHeightScale; 
     }
 }

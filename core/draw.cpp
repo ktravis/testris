@@ -113,7 +113,7 @@ void drawText(Renderer *r, FontAtlas *font, float x, float y, const char *text, 
         unsigned char u = *text;
         if (u == '\n') {
             xoff = 0;
-            yoff += font->mHeight + font->padding;
+            yoff += font->lineHeight * font->lineHeightScale;
         } else if (u >= 32 && u < 128) {
             float xadv = 0;
             float yadv = 0;

@@ -30,6 +30,10 @@ bool initWindow(Window *w, const char *title, int width, int height) {
     return true;
 }
 
+//void resizeWindow(Window *w, int w, int h) {
+    //SDL_SetWindowSize(w->handle, w, h);
+//}
+
 void swapWindow(Window *w) {
     SDL_GL_SwapWindow(w->handle);
 }

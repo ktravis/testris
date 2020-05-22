@@ -18,27 +18,36 @@ void *watchLoop(Watcher *w) {
 typedef void *(*threadFunc)(void*);
 #endif
 
-#define WINDOW_WIDTH  600
-#define WINDOW_HEIGHT 800
+#define WINDOW_WIDTH  1200
+#define WINDOW_HEIGHT 1600
 
 const char *title = "testris";
 App app = {
    .title  = title,
    .width  = WINDOW_WIDTH,
    .height = WINDOW_HEIGHT,
+   .scaleFactor = 2.0f,
 };
 
 Renderer r;
     
 GameState st = {};
 
-void step() {
+TextureHandle buf;
+bool step() {
     clear(&r, black);
     InputData in = step(&app);
-    updateGameState(&st, in);
+    bool result = updateGameState(&st, in);
 
+    renderToTexture(&r, &buf, app.width, app.height);
     renderGameState(&r, &st);
+    r.screenWidth = st.thing * st.width;
+    r.screenHeight = st.thing * st.height;
+    renderToScreen(&r);
+    DrawOpts2d opts = {};
+    drawTexturedQuad(&r, vec2(0.0f, 0.0f), r.screenWidth, r.screenHeight, buf, rect(0, 0, 1, -1), opts);
     swapWindow(&app.window);
+    return result;
 }
 
 int main(int argc, char *argv[]) {
@@ -70,10 +79,22 @@ int main(int argc, char *argv[]) {
         // than returning, but for now this is fine.
         return -1;
     }
-    renderToScreen(&r);
+    //renderToScreen(&r);
+
+    glGenTextures(1, &buf);
+    glBindTexture(GL_TEXTURE_2D, buf);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    renderToTexture(&r, &buf, app.width, app.height);
+    //renderToScreen(&r);
 
     st.width = app.width;
     st.height = app.height;
+    st.scaleFactor = app.scaleFactor;
     if (!startGame(&st, &r)) {
         log("start game failed, exiting");
         // TODO: really we should be jumping to the cleanup routine here rather
@@ -97,9 +118,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    while (!st.exitNow) {
-        step();
-
+    while (step()) {
         if (updated(&watcher, shaderWatch)) {
             debug("SHADERS UPDATED");
             if (!setupDefaultShaders(&r)) {

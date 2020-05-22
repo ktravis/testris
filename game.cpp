@@ -14,8 +14,10 @@
 // - sounds
 // - music
 
+uint8_t *ubuntu_ttf_buffer;
 FontAtlas ubuntu_m16;
 FontAtlas ubuntu_m32;
+uint8_t *mono_ttf_buffer;
 FontAtlas mono_m18;
 
 int32_t sound_ready;
@@ -24,6 +26,14 @@ ShaderProgram titleShader;
 ShaderProgram titleBGShader;
 
 Piece faller;
+
+float blockSide(GameState *st) {
+    return st->scaleFactor * BLOCK_SIDE;
+}
+
+float blockPad(GameState *st) {
+    return st->scaleFactor * BLOCK_PAD;
+}
 
 bool inBounds(int x, int y) {
     return x >= 0 && x < BOARD_WIDTH && y < BOARD_HEIGHT; // y >= 0
@@ -194,7 +204,6 @@ DEFINE_BUTTON(MainMenu_QuitButton);
 void initTitleMenu(GameState *st) {
     MenuContext *menu = &st->titleMenu;
     menu->font = &ubuntu_m32;
-    menu->lineHeight = 48;
     menu->lines = 0;
     menu->alignWidth = 24;
     menu->topCenter = vec2(st->width/2, st->height/2 + 140);
@@ -203,8 +212,14 @@ void initTitleMenu(GameState *st) {
     addMenuLine(menu, (char *)"high scores", MainMenu_HighScoresButton);
     addMenuLine(menu, (char *)"quit", MainMenu_QuitButton);
 
-    menu->hotIndex = 1;
+    menu->hotIndex = 0;
 }
+
+DEFINE_BUTTON(OptionsMenu_ResumeButton);
+DEFINE_BUTTON(OptionsMenu_QuitButton);
+
+DEFINE_BUTTON(OptionsMenu_ScaleUpButton);
+DEFINE_BUTTON(OptionsMenu_ScaleDownButton);
 
 void initOptionsMenu(GameState *st) {
     MenuContext *menu = &st->options;
@@ -229,6 +244,14 @@ void initOptionsMenu(GameState *st) {
     addMenuLine(menu, (char *)"[ settings ]");
     addMenuLine(menu, (char *)"muted", &st->settings.muted);
     addMenuLine(menu, (char *)"ghost", &st->settings.showGhost);
+
+    addMenuLine(menu, (char *)"");
+    addMenuLine(menu, (char *)"");
+
+    addMenuLine(menu, (char *)"resume", OptionsMenu_ResumeButton);
+    addMenuLine(menu, (char *)"quit", OptionsMenu_QuitButton);
+    addMenuLine(menu, (char *)"scale up", OptionsMenu_ScaleUpButton);
+    addMenuLine(menu, (char *)"scale down", OptionsMenu_ScaleDownButton);
 
     menu->hotIndex = 1;
 }
@@ -301,25 +324,32 @@ bool compileExtraShaders(Renderer *r) {
     if (!compileShaderProgram(&titleBGShader)) {
         return false;
     }
-    Vec2 dim = vec2(r->screenWidth, r->screenHeight);
-    glUniform2fv(glGetUniformLocation(titleBGShader.handle, "dim"), 1, (GLfloat*)&dim);
     return true;
 }
 
+void rebakeFonts(GameState *st) {
+    rebakeFont(&ubuntu_m32, ubuntu_ttf_buffer, st->scaleFactor*32.0f);
+    ubuntu_m32.padding = 10.0f*st->scaleFactor;
+    rebakeFont(&ubuntu_m16, ubuntu_ttf_buffer, st->scaleFactor*16.0f);
+    ubuntu_m16.padding = 10.0f*st->scaleFactor;
+    rebakeFont(&mono_m18, mono_ttf_buffer, st->scaleFactor*18.0f);
+    mono_m18.padding = 10.0f*st->scaleFactor;
+}
+
 bool startGame(GameState *st, Renderer *r) {
-    uint8_t *ttf_buffer;
-    if (!(ttf_buffer = readFile("./assets/fonts/Ubuntu-M.ttf"))) {
+    if (!(ubuntu_ttf_buffer = readFile("./assets/fonts/Ubuntu-M.ttf"))) {
         return false;
     }
-    loadFontAtlas(&ubuntu_m32, ttf_buffer, 32.0f);
-    loadFontAtlas(&ubuntu_m16, ttf_buffer, 16.0f);
-    free(ttf_buffer);
+    loadFontAtlas(&ubuntu_m32, ubuntu_ttf_buffer, st->scaleFactor*32.0f);
+    ubuntu_m32.padding = 10.0f*st->scaleFactor;
+    loadFontAtlas(&ubuntu_m16, ubuntu_ttf_buffer, st->scaleFactor*16.0f);
+    ubuntu_m16.padding = 10.0f*st->scaleFactor;
     
-    if (!(ttf_buffer = readFile("./assets/fonts/DejaVuSansMono-Bold.ttf"))) {
+    if (!(mono_ttf_buffer = readFile("./assets/fonts/DejaVuSansMono-Bold.ttf"))) {
         return false;
     }
-    loadFontAtlas(&mono_m18, ttf_buffer, 18.0f);
-    free(ttf_buffer);
+    loadFontAtlas(&mono_m18, mono_ttf_buffer, st->scaleFactor*18.0f);
+    mono_m18.padding = 10.0f*st->scaleFactor;
 
     sound_ready = loadAudioAndConvert("./assets/sounds/ready.wav");
     if (sound_ready == -1) { return false; }
@@ -328,6 +358,7 @@ bool startGame(GameState *st, Renderer *r) {
     // is this stupid? probably
     init.width = st->width;
     init.height = st->height;
+    init.scaleFactor = st->scaleFactor;
     *st = init;
 
     if (!loadSettings(&st->settings, "~/.testris.conf")) {
@@ -423,23 +454,27 @@ Transition *transition(GameState *st, Transition::Type tp, Scene to, float durat
     return &st->transition;
 }
 
-void startRound(GameState *st) {
-    st->score = 0;
-    st->stored = -1;
-    st->canStore = true;
-
-    int board_width_px = (BOARD_WIDTH * BLOCK_SIDE + (BOARD_WIDTH + 1) * BLOCK_PAD);
-    int board_height_px = (BOARD_HEIGHT * BLOCK_SIDE + (BOARD_HEIGHT + 1) * BLOCK_PAD);
+Rect border(GameState *st) {
+    int board_width_px = (BOARD_WIDTH * blockSide(st) + (BOARD_WIDTH + 1) * blockPad(st));
+    int board_height_px = (BOARD_HEIGHT * blockSide(st) + (BOARD_HEIGHT + 1) * blockPad(st));
 
     Vec2 ul_corner = {
         .x = st->width/2.0f - board_width_px / 2.0f,
         .y = st->height/2.0f - board_height_px / 2.0f,
     };
 
-    st->border = Rect{
+    return Rect{
         .pos = ul_corner,
         .box = vec2(board_width_px, board_height_px), 
     };
+}
+
+void startRound(GameState *st) {
+    st->score = 0;
+    st->stored = -1;
+    st->canStore = true;
+    st->roundInProgress = true;
+
 
     for (int y = 0; y < BOARD_HEIGHT; y++)
         for (int x = 0; x < BOARD_WIDTH; x++)
@@ -476,14 +511,15 @@ void transitionStartRound(GameState *st) {
 
 float tickInterval = 1500.0f;
 
-Vec2 gridBlockPos(GameState *st, int x, int y) {
+Vec2 gridBlockPos(GameState *st, Vec2 ul, int x, int y) {
     return vec2(
-        (x + 0.5) * BLOCK_SIDE + (x + 1) * BLOCK_PAD + st->border.x,
-        (y + 0.5) * BLOCK_SIDE + (y + 1) * BLOCK_PAD + st->border.y
+        (x + 0.5) * blockSide(st) + (x + 1) * blockPad(st) + ul.x,
+        (y + 0.5) * blockSide(st) + (y + 1) * blockPad(st) + ul.y
     );
 }
 
 void tryClearingLine(GameState *st, int line) {
+    Vec2 ul = border(st).pos;
     Cell *row = st->board[line];
     for (int x = 0; x < BOARD_WIDTH; x++) {
         if (!row[x].full) {
@@ -494,7 +530,7 @@ void tryClearingLine(GameState *st, int line) {
 
         // fly off board
         b->onBoard = false;
-        b->timeLeft = 1200.0f;
+        b->timeLeft = 3200.0f;
         b->rotv = randf(8.0f) - 4.0f;
         b->vel.x = randf(9.0f) - 4.5f;
         b->vel.y = randf(-7.5f) - 0.5f;
@@ -502,7 +538,7 @@ void tryClearingLine(GameState *st, int line) {
         for (int y = line-1; y >= 0; y--) {
             st->board[y+1][x] = st->board[y][x];
             if (!st->board[y][x].full) continue;
-            st->blocks[st->board[y+1][x].blockIndex].targetPos = gridBlockPos(st, x, y+1);
+            st->blocks[st->board[y+1][x].blockIndex].targetPos = gridBlockPos(st, ul, x, y+1);
             st->blocks[st->board[y+1][x].blockIndex].tweenStep = 0;
         }
         st->board[0][x].full = false;
@@ -543,6 +579,7 @@ int placeBlock(GameState *st, Block b) {
 }
 
 void placePiece(GameState *st, Piece *p) {
+    Vec2 ul = border(st).pos;
     for (int i = 0; i < PIECE_BLOCK_TOTAL; i++) {
         if (!pieces[p->type][p->orientation][i]) continue;
         Block b = {0};
@@ -551,7 +588,7 @@ void placePiece(GameState *st, Piece *p) {
         b.color = colors[p->type];
         int x = p->x+i%4;
         int y = p->y+i/4;
-        b.targetPos = gridBlockPos(st, x, y);
+        b.targetPos = gridBlockPos(st, ul, x, y);
         b.pos = b.targetPos;
         st->board[y][x].full = true;
         st->board[y][x].blockIndex = placeBlock(st, b);
@@ -583,7 +620,7 @@ bool updateTransition(Transition *t, InputData in) {
     return t->z > 0.5f;
 }
 
-void updateGameState(GameState *st, InputData in) {
+bool updateGameState(GameState *st, InputData in) {
     // only update the fps once a second so it's (slightly) smoother
     static float acc = 0;
     acc += in.dt;
@@ -591,17 +628,16 @@ void updateGameState(GameState *st, InputData in) {
         acc = 0;
         st->fps = 1000.0f/in.dt;
     }
-    st->t += in.dt;
+    st->elapsed += in.dt;
 
     if (in.quit) {
-        st->exitNow = true;
-        return;
+        return false;
     }
 
     Transition *t = &st->transition;
 
     if (t->type == Transition::NONE) {
-        updateScene(st, in, st->scenes[st->currentScene]);
+        return updateScene(st, in, st->scenes[st->currentScene]);
     } else {
         if (updateTransition(t, in)) {
             if (t->fn) {
@@ -611,6 +647,7 @@ void updateGameState(GameState *st, InputData in) {
             setScene(st, t->to);
         }
     }
+    return true;
 }
 
 void renderBoard(Renderer *r, GameState *st) {
@@ -618,12 +655,13 @@ void renderBoard(Renderer *r, GameState *st) {
         if (!st->blocks[i].inUse) continue;
         Block *b = &st->blocks[i];
         DrawOpts2d opts;
-        Rect rx = rect(b->pos, BLOCK_SIDE, BLOCK_SIDE);
+        Rect rx = rect(b->pos, blockSide(st), blockSide(st));
         opts.origin = scaled(rx.box, 0.5);
         opts.tint = b->color;
         opts.rotation = b->rotation;
         drawRect(r, rx, opts);
     }
+    Vec2 ul = border(st).pos;
 
     // faller
     for (int i = 0; i < PIECE_BLOCK_TOTAL; i++) {
@@ -636,17 +674,17 @@ void renderBoard(Renderer *r, GameState *st) {
             continue;
         }
         
-        Rect rx = rect(gridBlockPos(st, faller.x+x, faller.y+y), BLOCK_SIDE, BLOCK_SIDE);
-        rx.pos.x -= BLOCK_SIDE/2;
-        rx.pos.y -= BLOCK_SIDE/2;
+        Rect rx = rect(gridBlockPos(st, ul, faller.x+x, faller.y+y), blockSide(st), blockSide(st));
+        rx.pos.x -= blockSide(st)/2;
+        rx.pos.y -= blockSide(st)/2;
         drawRect(r, rx, colors[faller.type]);
     }
 
     if (st->stored != -1) {
         bool anyInRow = false;
 
-        float side = BLOCK_SIDE * 0.7f;
-        float pad = BLOCK_PAD * 0.7f;
+        float side = blockSide(st) * 0.7f;
+        float pad = blockPad(st) * 0.7f;
         Vec2 v = vec2(16, 200);
         Vec2 box = vec2(side, side);
         int y = 0;
@@ -674,6 +712,7 @@ void renderGhost(Renderer *r, GameState *st) {
     //Color c = multiply(colors[cp.type], 1.70);
     Color c = colors[cp.type];
     while (tryMove(st, &cp, 0, 1));
+    Vec2 ul = border(st).pos;
     for (int i = 0; i < PIECE_BLOCK_TOTAL; i++) {
         if (!pieces[cp.type][cp.orientation][i]) {
             continue;
@@ -684,10 +723,10 @@ void renderGhost(Renderer *r, GameState *st) {
             continue;
         }
         
-        Rect rx = rect(gridBlockPos(st, cp.x+x, cp.y+y), BLOCK_SIDE, BLOCK_SIDE);
-        rx.pos.x -= BLOCK_SIDE/2;
-        rx.pos.y -= BLOCK_SIDE/2;
-        drawRectOutline(r, rx, c, 2.0f);
+        Rect rx = rect(gridBlockPos(st, ul, cp.x+x, cp.y+y), blockSide(st), blockSide(st));
+        rx.pos.x -= blockSide(st)/2;
+        rx.pos.y -= blockSide(st)/2;
+        drawRectOutline(r, rx, c, 2.0f * st->scaleFactor);
     }
 }
 
@@ -698,12 +737,12 @@ void renderGameOver(Renderer *r, GameState *st) {
 }
 
 void renderScore(Renderer *r, GameState *st) {
-    drawText(r, &ubuntu_m32, 16, 48, "score:");
-    char buf[5];
-    snprintf(buf, sizeof(buf), "%04d", st->score);
-    drawText(r, &ubuntu_m32, 16, 84, buf);
+    DrawOpts2d opts = {};
+    float h = st->scaleFactor*(ubuntu_m32.lineHeight * ubuntu_m32.lineHeightScale);
+    drawTextf(r, &ubuntu_m32, 16, 16+h, opts, (const char*)"score:\n%04d", st->score);
 
     drawText(r, &ubuntu_m32, 16, st->height-84, "hi:");
+    char buf[5];
     snprintf(buf, sizeof(buf), "%04d", st->hiscore);
     drawText(r, &ubuntu_m32, 16, st->height-48, buf);
 }
@@ -711,10 +750,10 @@ void renderScore(Renderer *r, GameState *st) {
 void renderQueue(Renderer *r, GameState *st) {
     const int VISIBLE_QUEUE_BLOCKS = 5;
 
-    float side = BLOCK_SIDE * 0.7f;
-    float pad = BLOCK_PAD * 0.7f;
+    float side = blockSide(st) * 0.7f;
+    float pad = blockPad(st) * 0.7f;
 
-    Vec2 v = vec2(st->width - 110, 80);
+    Vec2 v = vec2(st->width - (4.0f*side+5.0f*pad), 80);
     Vec2 box = vec2(side, side);
     int y = 0;
     for (int q = 0; q < VISIBLE_QUEUE_BLOCKS; q++) {
@@ -764,23 +803,21 @@ void renderGameState(Renderer *r, GameState *st) {
 #ifdef DEBUG
     char buf[6];
     snprintf(buf, sizeof(buf), "%02.f", st->fps);
-    drawTextCentered(r, &mono_m18, r->screenWidth - 50.0f, 24, buf);
+    drawTextCentered(r, &mono_m18, st->width - 50.0f, 24, buf);
 #endif
 }
 
-void updateTitle(GameState *st, InputData in) {
+bool updateTitle(GameState *st, InputData in) {
     MenuButton *btn = updateMenu(&st->titleMenu, in);
     if (btn == MainMenu_StartGameButton) {
         transitionStartRound(st);
     } else if (btn == MainMenu_OptionsButton) {
-        // TODO(ktravis): would like to do this instead, but it doesn't "push
-        // scene", so escaping from the options menu crashes
-        //transition(st, Transition::CHECKER_IN_OUT, OPTIONS, 1500);
-        pushScene(st, OPTIONS);
+        transition(st, Transition::CHECKER_IN_OUT, OPTIONS, 1500);
     } else if (btn == MainMenu_HighScoresButton) {
     } else if (btn == MainMenu_QuitButton) {
-        st->exitNow = true;
+        return false;
     }
+    return true;
 }
 
 void renderTitle(Renderer *r, GameState *st) {
@@ -800,7 +837,9 @@ void renderTitle(Renderer *r, GameState *st) {
 
     DrawOpts2d bgOpts = {};
     bgOpts.shader = &titleBGShader;
-    drawRect(r, rect(0, 0, r->screenWidth, r->screenHeight), bgOpts);
+    Vec2 dim = vec2(st->width, st->height);
+    glUniform2fv(glGetUniformLocation(titleBGShader.handle, "dim"), 1, (GLfloat*)&dim);
+    drawRect(r, rect(0, 0, st->width, st->height), bgOpts);
 
     const int N = 6 * sizeof(title)/sizeof(char);
     VertexData vbuf[N];
@@ -809,12 +848,12 @@ void renderTitle(Renderer *r, GameState *st) {
     opts.meshBuffer = Mesh{.count = N, .data = vbuf};
     opts.shader = &titleShader;
 
-    drawTextCentered(r, &mono_m18, r->screenWidth/2, r->screenHeight/2 - 150, title, opts);
+    drawTextCentered(r, &mono_m18, st->width/2, st->height/2 - 150, title, opts);
     //Vec2 dim = getTextDimensions(title, &mono_m18);
     //opts.origin.x = dim.x / 2;
     //opts.origin.y = -dim.y / 2;
-    //drawText(r, &mono_m18, r->screenWidth/2, 0, title, opts);
-    drawMenu(r, &st->titleMenu, defaultHotOpts(st->t));
+    //drawText(r, &mono_m18, st->width/2, 0, title, opts);
+    drawMenu(r, &st->titleMenu, defaultHotOpts(st->elapsed));
 }
 
 float moveRate = 12.0f;
@@ -825,7 +864,11 @@ void gameOver(GameState *st) {
     transition(st, Transition::ROWS_ACROSS, GAME_OVER, 1500);
 }
 
-void updateInRound(GameState *st, InputData in) {
+bool onscreen(GameState *st, Block *b) {
+    return contains(rect(-blockSide(st), -blockSide(st), st->width+blockSide(st), st->height+blockSide(st)), b->pos);
+}
+
+bool updateInRound(GameState *st, InputData in) {
     for (int i = 0; i < in.numKeyEvents; i++) {
         KeyEvent e = keyEvent(&in, i);
         if (e.state.down) {
@@ -838,9 +881,10 @@ void updateInRound(GameState *st, InputData in) {
                 case SDLK_r:
                     // TODO: only if gameOver
                     transitionStartRound(st);
-                    return;
+                    return true;
                 case SDLK_ESCAPE:
-                    return pushScene(st, OPTIONS);
+                    pushScene(st, OPTIONS);
+                    return true;
                 }
             }
             if (st->paused) continue;
@@ -855,7 +899,8 @@ void updateInRound(GameState *st, InputData in) {
                     if (st->stored == -1) {
                         st->stored = t;
                         if (!spawnFaller(st)) {
-                            return gameOver(st);
+                            gameOver(st);
+                            return true;
                         }
                     } else {
                         // TODO: make this "resetPiece" or something
@@ -871,7 +916,8 @@ void updateInRound(GameState *st, InputData in) {
                 while (tryMove(st, &faller, 0, 1));
                 placePiece(st, &faller);
                 if (!spawnFaller(st)) {
-                    return gameOver(st);
+                    gameOver(st);
+                    return true;
                 }
             } else if (e.key == st->settings.controls.down) {
                 st->held.down = true;
@@ -891,7 +937,7 @@ void updateInRound(GameState *st, InputData in) {
         }
     }
 
-    if (st->paused) return;
+    if (st->paused) return true;
 
     // TODO: tweak accel
     if (st->moveDelayMillis <= 0.0f) {
@@ -941,7 +987,7 @@ void updateInRound(GameState *st, InputData in) {
             }
         } else {
             b->timeLeft -= in.dt;
-            if (b->timeLeft > 0) {
+            if (onscreen(st, b) && b->timeLeft > 0) {
                 b->rotation += b->rotv;
                 b->pos = add(b->pos, b->vel);
                 b->vel.y += .25f;
@@ -950,16 +996,16 @@ void updateInRound(GameState *st, InputData in) {
             }
         }
     }
-    return;
+    return true;
 }
 
 void renderInRound(Renderer *r, GameState *st) {
     if (st->paused) {
-        drawTextCentered(r, &ubuntu_m32, r->screenWidth/2, r->screenHeight/2, "PAUSED");
+        drawTextCentered(r, &ubuntu_m32, st->width/2, st->height/2, "PAUSED");
         return;
     }
 
-    drawRectOutline(r, st->border, white);
+    drawRectOutline(r, border(st), white, st->scaleFactor);
     if (st->settings.showGhost)
         renderGhost(r, st);
     renderBoard(r, st);
@@ -967,7 +1013,7 @@ void renderInRound(Renderer *r, GameState *st) {
     renderQueue(r, st);
 }
 
-void updateGameOver(GameState *st, InputData in) {
+bool updateGameOver(GameState *st, InputData in) {
     for (int i = 0; i < in.numKeyEvents; i++) {
         KeyEvent e = keyEvent(&in, i);
         if (!e.state.down)
@@ -978,9 +1024,10 @@ void updateGameOver(GameState *st, InputData in) {
             break;
         }
     }
+    return true;
 }
 
-void updateOptions(GameState *st, InputData in) {
+bool updateOptions(GameState *st, InputData in) {
     if (st->options.interaction != KEYBINDING) {
         for (int i = 0; i < in.numKeyEvents; i++) {
             KeyEvent e = keyEvent(&in, i);
@@ -989,28 +1036,44 @@ void updateOptions(GameState *st, InputData in) {
 
             switch (e.key) {
             case SDLK_ESCAPE:
-                popScene(st);
-                return;
+                if (!st->roundInProgress) transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
+                else popScene(st);
+                return true;
             }
         }
     }
     Settings last = st->settings;
-    updateMenu(&st->options, in);
+    MenuButton *btn = updateMenu(&st->options, in);
     if (!EQUAL(st->settings, last)) {
         if (!saveSettings(&st->settings, "~/.testris.conf")) {
             log("settings save failed");
         }
     }
-    return;
+    if (btn == OptionsMenu_ResumeButton) {
+        if (!st->roundInProgress) transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
+        else popScene(st);
+        return true;
+    } else if (btn == OptionsMenu_QuitButton) {
+        return false;
+    } else if (btn == OptionsMenu_ScaleUpButton) {
+
+        //st->scaleFactor *= 2;
+        //rebakeFonts(st);
+    } else if (btn == OptionsMenu_ScaleDownButton) {
+        st->thing -= 0.1f;
+        //st->scaleFactor /= 2;
+        //rebakeFonts(st);
+    }
+    return true;
 }
 
 void renderOptions(Renderer *r, GameState *st) {
-    drawMenu(r, &st->options, defaultHotOpts(st->t));
+    drawMenu(r, &st->options, defaultHotOpts(st->elapsed));
 
     // draw help text
     DrawOpts2d opts = {};
     opts.tint.r = opts.tint.g = opts.tint.b = 0.65;
-    drawTextCentered(r, st->options.font, r->screenWidth/2, r->screenHeight - 2*st->options.lineHeight, "arrow keys + enter / mouse + click", opts);
+    drawTextCentered(r, st->options.font, st->width/2, st->height - 2.0f*(st->options.font->lineHeight*st->options.font->lineHeightScale), "arrow keys + enter / mouse + click", opts);
 }
 
 void renderTransition(Renderer *r, GameState *st) {
@@ -1023,14 +1086,14 @@ void renderTransition(Renderer *r, GameState *st) {
         {
             t.opts.tint = white;
             t.opts.tint.a = (t.z <= 0.5f ? 2*t.z : 2*(1 - t.z));
-            drawRect(r, rect(0, 0, r->screenWidth, r->screenHeight), t.opts);
+            drawRect(r, rect(0, 0, st->width, st->height), t.opts);
             break;
         }
     case Transition::CHECKER_IN_OUT:
         {
-            int side = 50;
-            int nx = 1 + r->screenWidth / side;
-            int ny = 1 + r->screenHeight / side;
+            int side = st->scaleFactor*50;
+            int nx = 1 + st->width / side;
+            int ny = 1 + st->height / side;
             float totalDelay = 0.5f;
             float hesitation = 1.8;
             for (int i = 0; i < nx*ny; i++) {
@@ -1060,9 +1123,9 @@ void renderTransition(Renderer *r, GameState *st) {
         }
     case Transition::CHECKER_IN_OUT_ROTATE:
         {
-            int side = 30;
-            int nx = 1 + r->screenWidth / side;
-            int ny = 1 + r->screenHeight / side;
+            int side = st->scaleFactor*30;
+            int nx = 1 + st->width / side;
+            int ny = 1 + st->height / side;
             float totalDelay = 0.5f;
             for (int i = 0; i < nx*ny; i++) {
                 float d = totalDelay * (0.3*(i%nx) / nx + 0.7*(i/nx)/ny);
@@ -1084,10 +1147,10 @@ void renderTransition(Renderer *r, GameState *st) {
         }
     case Transition::ROWS_ACROSS:
         {
-            int side = 75;
-            int ny = 1 + r->screenHeight / side;
-            float rw = r->screenWidth*2;
-            float offset = r->screenWidth;
+            int side = st->scaleFactor*75;
+            int ny = 1 + st->height / side;
+            float rw = st->width*2;
+            float offset = st->width;
 
             //float totalDelay = 0.5f;
             for (int i = 0; i < ny; i++) {
@@ -1100,7 +1163,7 @@ void renderTransition(Renderer *r, GameState *st) {
                 float so = offset*((float)i+1)/ny;
                 float eo = offset*(1 - ((float)i+1)/ny);
                 float startx = -(rw+so);
-                float endx = r->screenWidth+eo;
+                float endx = st->width+eo;
                 rx.x = startx + (endx-startx)*z;
                 rx.y = side * i;
 
@@ -1111,36 +1174,36 @@ void renderTransition(Renderer *r, GameState *st) {
     }
 }
 
-void updateScene(GameState *st, InputData in, Scene s) {
+bool updateScene(GameState *st, InputData in, Scene s) {
     st->lastMousePos = in.mouse;
     switch (s) {
     case IN_ROUND:
-        updateInRound(st, in);
-        break;
+        return updateInRound(st, in);
     case TITLE:
-        updateTitle(st, in);
-        break;
+        return updateTitle(st, in);
     case OPTIONS:
-        updateOptions(st, in);
-        break;
+        return updateOptions(st, in);
     case GAME_OVER:
-        updateGameOver(st, in);
-        break;
+        return updateGameOver(st, in);
     }
+    assert(false);
+    return false;
 }
 
 void renderScene(Renderer *r, GameState *st, Scene s) {
-    // I don't like this, the time should be in the renderer so it can be
+    // XXX(ktravis): I don't like this, the time should be in the renderer so it can be
     // updated all at once (once the shader is bound, also);
     // really would like to refactor the uniforms generally as well
     useShader(r, &titleShader);
-    updateShader(&titleShader, st->t, 0, &r->proj, 0, 0, &st->lastMousePos);
+    updateShader(&titleShader, st->elapsed, 0, &r->proj, 0, 0, &st->lastMousePos);
 
     useShader(r, &titleBGShader);
-    updateShader(&titleBGShader, st->t, 0, &r->proj, 0, 0, 0);
+    updateShader(&titleBGShader, st->elapsed, 0, &r->proj, 0, 0, 0);
+    Vec2 dim = vec2(st->width, st->height);
+    glUniform2fv(glGetUniformLocation(titleBGShader.handle, "dim"), 1, (GLfloat*)&dim);
 
     useShader(r, &r->defaultShader);
-    updateShader(r->currentShader, st->t, 0, &r->proj, 0, 0, &st->lastMousePos);
+    updateShader(r->currentShader, st->elapsed, 0, &r->proj, 0, 0, &st->lastMousePos);
 
     switch (s) {
     case IN_ROUND:

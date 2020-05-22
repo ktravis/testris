@@ -104,14 +104,12 @@ struct GameState {
     Scene scenes[128];
     int currentScene;
 
-    bool exitNow = false;
-
     int width;
     int height;
+    float scaleFactor;
+    float thing = 1.0f;
 
     Settings settings;
-
-    Rect border;
 
     int score;
     int hiscore;
@@ -121,7 +119,7 @@ struct GameState {
     int stored;
     bool canStore;
 
-    float t;
+    float elapsed;
     float fps;
 
     Transition transition;
@@ -144,9 +142,9 @@ struct GameState {
 
     // TITLE
     MenuContext titleMenu;
-    bool startGame;
 
     // IN_ROUND
+    bool roundInProgress = false;
     bool paused = false;
     bool gameOver = false;
     bool moving = false;
@@ -155,13 +153,15 @@ struct GameState {
 
     // OPTIONS
     MenuContext options;
+
+    bool needsRescale;
 };
 
 bool startGame(GameState *, Renderer *);
-void updateGameState(GameState *st, InputData in);
+bool updateGameState(GameState *st, InputData in);
+bool updateScene(GameState *st, InputData in, Scene s);
 void renderGameState(Renderer *r, GameState *st);
 void renderScene(Renderer *r, GameState *st, Scene s);
 void renderTransition(Renderer *r, GameState *st);
-void updateScene(GameState *st, InputData in, Scene s);
 
 #endif // GAME_H

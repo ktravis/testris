@@ -292,11 +292,15 @@ struct FontAtlas {
     stbtt_fontinfo info;
     stbtt_bakedchar cdata[ATLAS_CHAR_COUNT]; // ASCII 32..126 is 95 glyphs
     GLuint tex;
-    float mHeight;
+    float size;
+    float scale;
+    float lineHeight;
+    float lineHeightScale = 1.0f;
     float padding = 10.0f;
 };
 
 void loadFontAtlas(FontAtlas *font, const unsigned char *font_data, float size);
+void rebakeFont(FontAtlas *font, const unsigned char *font_data, float size);
 Vec2 getTextDimensions(const char *text, FontAtlas *font);
 Vec2 getTextCenterOffset(const char *text, FontAtlas *font);
 
@@ -629,8 +633,6 @@ struct MenuContext {
     InteractionType interaction;
 
     FontAtlas *font;
-    // TODO: calculate this default from the font
-    float lineHeight = 20.0f;
     int alignWidth = -1;
     TextAlignment alignment = TextAlignment::CENTER;
     //TextAlignment alignment = TextAlignment::TOPLEFT;
@@ -664,6 +666,7 @@ struct App {
     const char *title;
     int width;
     int height;
+    float scaleFactor;
     int mode;
     Window window;
 
