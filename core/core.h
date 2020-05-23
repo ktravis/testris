@@ -460,6 +460,13 @@ struct Renderer {
     TextureHandle defaultTexture;
 };
 
+struct RenderTarget {
+    TextureHandle tex;
+    GLuint fb;
+    uint32_t w;
+    uint32_t h;
+};
+
 GLenum glDrawMode(DrawMode m);
 
 void initRenderer(Renderer *r, uint32_t w, uint32_t h);
@@ -470,7 +477,8 @@ void setupProjection(Renderer *r, Mat4 proj);
 bool setupDefaultShaders(Renderer *r);
 void cleanupRenderer(Renderer *r);
 void renderToScreen(Renderer *r);
-bool renderToTexture(Renderer *r, TextureHandle *tex, uint32_t w, uint32_t h);
+bool createRenderTarget(RenderTarget *rt, uint32_t w, uint32_t h);
+bool renderToTexture(Renderer *r, RenderTarget *rt);
 void draw(Renderer *r, DrawCall call);
 
 void updateShader(ShaderProgram *s, float time, Mat4 *modelview, Mat4 *proj, TextureHandle *tex, Color *tint, Vec2 *mouse);

@@ -351,8 +351,8 @@ bool startGame(GameState *st, Renderer *r) {
     loadFontAtlas(&mono_m18, mono_ttf_buffer, st->scaleFactor*18.0f);
     mono_m18.padding = 10.0f*st->scaleFactor;
 
-    sound_ready = loadAudioAndConvert("./assets/sounds/ready.wav");
-    if (sound_ready == -1) { return false; }
+    //sound_ready = loadAudioAndConvert("./assets/sounds/ready.wav");
+    //if (sound_ready == -1) { return false; }
 
     GameState init = {};
     // is this stupid? probably

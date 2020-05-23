@@ -119,30 +119,42 @@ void renderToScreen(Renderer *r) {
     ortho(r->proj, 0, r->screenWidth, 0, r->screenHeight, clipNear, clipFar);
 }
 
-bool renderToTexture(Renderer *r, TextureHandle *tex, uint32_t w, uint32_t h) {
-    GLuint fb = 0;
-    glGenFramebuffers(1, &fb);
-    glBindFramebuffer(GL_FRAMEBUFFER, fb);
+bool createRenderTarget(RenderTarget *rt, uint32_t w, uint32_t h) {
+    rt->w = w;
+    rt->h = h;
+    glGenFramebuffers(1, &rt->fb);
+    glBindFramebuffer(GL_FRAMEBUFFER, rt->fb);
 
-    glGenTextures(1, tex);
-    glBindTexture(GL_TEXTURE_2D, *tex);
+    glGenTextures(1, &rt->tex);
+    glBindTexture(GL_TEXTURE_2D, rt->tex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, *tex, 0);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, rt->tex, 0);
     GLenum drawbuf = GL_COLOR_ATTACHMENT0;
     glDrawBuffers(1, &drawbuf);
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         return false;
 
-    glViewport(0, 0, w, h);
-    GLfloat clipNear = 0.0f;
-    GLfloat clipFar = 10.0f;
-    ortho(r->proj, 0, w, h, 0, clipNear, clipFar);
+    glViewport(0, 0, rt->w, rt->h);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    return true;
+}
 
+bool renderToTexture(Renderer *r, RenderTarget *rt) {
+    glBindFramebuffer(GL_FRAMEBUFFER, rt->fb);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        return false;
+
+    //glViewport(0, 0, rt->w, rt->h);
+    //GLfloat clipNear = 0.0f;
+    //GLfloat clipFar = 10.0f;
+    //ortho(r->proj, 0, rt->w, rt->h, 0, clipNear, clipFar);
     return true;
 }
 

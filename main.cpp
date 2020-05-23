@@ -33,19 +33,24 @@ Renderer r;
     
 GameState st = {};
 
-TextureHandle buf;
+RenderTarget boi;
+
 bool step() {
     clear(&r, black);
     InputData in = step(&app);
     bool result = updateGameState(&st, in);
 
-    renderToTexture(&r, &buf, app.width, app.height);
+    assert(renderToTexture(&r, &boi));
+    clear(&r, red);
     renderGameState(&r, &st);
-    r.screenWidth = st.thing * st.width;
-    r.screenHeight = st.thing * st.height;
+    drawRectOutline(&r, rect(40, 40, 100, 100), white, 5);
+
     renderToScreen(&r);
+    renderGameState(&r, &st);
+    //r.screenWidth = st.thing * st.width;
+    //r.screenHeight = st.thing * st.height;
     DrawOpts2d opts = {};
-    drawTexturedQuad(&r, vec2(0.0f, 0.0f), r.screenWidth, r.screenHeight, buf, rect(0, 0, 1, -1), opts);
+    drawTexturedQuad(&r, in.mouse, boi.w, boi.h, boi.tex, rect(0, 1, 1, 0), opts);
     swapWindow(&app.window);
     return result;
 }
@@ -79,18 +84,14 @@ int main(int argc, char *argv[]) {
         // than returning, but for now this is fine.
         return -1;
     }
-    //renderToScreen(&r);
 
-    glGenTextures(1, &buf);
-    glBindTexture(GL_TEXTURE_2D, buf);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    if (!createRenderTarget(&boi, app.width, app.height)) {
+        log("failed creating render target");
+        return 1;
+    }
 
-    renderToTexture(&r, &buf, app.width, app.height);
-    //renderToScreen(&r);
+    //renderToTexture(&r, &buf, app.width, app.height);
+    renderToScreen(&r);
 
     st.width = app.width;
     st.height = app.height;
