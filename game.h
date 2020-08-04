@@ -37,6 +37,8 @@ struct Transition {
 };
 
 struct Block {
+    int x;
+    int y;
     bool inUse;
     bool onBoard;
     Color color;
@@ -85,6 +87,7 @@ struct Settings {
     } controls;
     bool muted = false;
     bool showGhost = true;
+    float renderScale = 1.0f;
 };
 
 DECLARE_SERDE(Settings);
@@ -103,11 +106,6 @@ bool compileExtraShaders(Renderer *r);
 struct GameState {
     Scene scenes[128];
     int currentScene;
-
-    int width;
-    int height;
-    float scaleFactor;
-    float thing = 1.0f;
 
     Settings settings;
 
@@ -153,11 +151,9 @@ struct GameState {
 
     // OPTIONS
     MenuContext options;
-
-    bool needsRescale;
 };
 
-bool startGame(GameState *, Renderer *);
+bool startGame(GameState *, Renderer *, App *);
 bool updateGameState(GameState *st, InputData in);
 bool updateScene(GameState *st, InputData in, Scene s);
 void renderGameState(Renderer *r, GameState *st);

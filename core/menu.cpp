@@ -197,8 +197,7 @@ MenuButton *updateMenu(MenuContext *ctx, InputData in) {
     return 0;
 }
 
-void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts) {
-    DrawOpts2d opts = {};
+void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts, DrawOpts2d opts) {
     Vec2 pos = ctx->topCenter;
     int n = array_len(ctx->lines);
     for (int i = 0; i < n; i++) {

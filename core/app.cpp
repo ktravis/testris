@@ -121,7 +121,13 @@ InputData step(App *app) {
                 }
             }
             break;
-        case SDL_WINDOWEVENT_SIZE_CHANGED:
+        case SDL_WINDOWEVENT:
+            switch (event.window.event) {
+            case SDL_WINDOWEVENT_RESIZED:
+                app->setWindowSize(event.window.data1, event.window.data2);
+                log("we done it %d %d", event.window.data1, event.window.data2);
+                break;
+            }
             break;
         //default:
         }

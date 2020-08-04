@@ -51,7 +51,7 @@ struct Vec2 {
     float y;
 };
 
-Vec2 vec2(float x, float y);
+Vec2 vec2(float x = 0.0f, float y = 0.0f);
 float dsqr(Vec2 a);
 Vec2 add(Vec2 a, Vec2 b);
 Vec2 sub(Vec2 a, Vec2 b);
@@ -70,8 +70,8 @@ struct Vec3 {
     float z;
 };
 
-Vec3 vec3(float x, float y, float z);
-Vec3 vec3(Vec2 xy, float z);
+Vec3 vec3(float x = 0.0f, float y = 0.0f, float z = 0.0f);
+Vec3 vec3(Vec2 xy, float z = 0.0f);
 float dsqr(Vec3 a);
 Vec3 add(Vec3 a, Vec3 b);
 Vec3 sub(Vec3 a, Vec3 b);
@@ -89,9 +89,9 @@ struct Vec4 {
     float w;
 };
 
-Vec4 vec4(float x, float y, float z, float w);
-Vec4 vec4(Vec2 xy, float z, float w);
-Vec4 vec4(Vec3 xyz, float w);
+Vec4 vec4(float x = 0.0f, float y = 0.0f, float z = 0.0f, float w = 0.0f);
+Vec4 vec4(Vec2 xy, float z = 0.0f, float w = 0.0f);
+Vec4 vec4(Vec3 xyz, float w = 0.0f);
 Vec4 vec4();
 
 // rect.cpp
@@ -254,6 +254,7 @@ bool _deserializeFields(uint8_t *buf, int n, SerDeField *fields);
 #define FIELD(name, fmt) FIELD_FN(name, (fmt), NULL, NULL)
 
 #define BOOL_FIELD(name) FIELD_FN(name, "%s", boolToString, boolFromString)
+#define FLOAT_FIELD(name) FIELD(name, "%g")
 
 #define DECLARE_SERIALIZER(obj) \
     uint8_t *serialize ## obj(obj *item)
@@ -481,8 +482,6 @@ bool createRenderTarget(RenderTarget *rt, uint32_t w, uint32_t h);
 bool renderToTexture(Renderer *r, RenderTarget *rt);
 void draw(Renderer *r, DrawCall call);
 
-void updateShader(ShaderProgram *s, float time, Mat4 *modelview, Mat4 *proj, TextureHandle *tex, Color *tint, Vec2 *mouse);
-
 // draw.cpp
 //
 
@@ -635,6 +634,7 @@ enum TextAlignment {
 };
 
 struct MenuContext {
+    // TODO(ktravis): let's make this more immediate and not bake the topCenter into the context
     Vec2 topCenter;
     MenuLine *lines;
     int hotIndex;
@@ -657,7 +657,7 @@ Rect menuLineDimensions(MenuContext *ctx, MenuLine item, Vec2 pos);
 int prevHotLine(MenuContext *ctx);
 int nextHotLine(MenuContext *ctx);
 MenuButton *menuInteract(MenuContext *ctx, MenuLine *item);
-void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts);
+void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts, DrawOpts2d opts = {});
 MenuButton *updateMenu(MenuContext *ctx, InputData in);
 DrawOpts2d defaultHotOpts(float t);
 
@@ -674,7 +674,6 @@ struct App {
     const char *title;
     int width;
     int height;
-    float scaleFactor;
     int mode;
     Window window;
 
@@ -682,6 +681,8 @@ struct App {
     struct timespec now;
 
     InputData lastInput;
+
+    void (*setWindowSize)(int w, int h);
 };
 
 bool initApp(App *app, int mode);

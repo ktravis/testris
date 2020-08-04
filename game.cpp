@@ -27,12 +27,26 @@ ShaderProgram titleBGShader;
 
 Piece faller;
 
+static App *app = NULL;
+
+float scale() {
+    float x = app->width/600.0f;
+    float y = app->height/800.0f;
+    return MIN(x, y);
+}
+
 float blockSide(GameState *st) {
-    return st->scaleFactor * BLOCK_SIDE;
+    return scale()*BLOCK_SIDE;
 }
 
 float blockPad(GameState *st) {
-    return st->scaleFactor * BLOCK_PAD;
+    return scale()*BLOCK_PAD;
+}
+
+DrawOpts2d scaleOpts() {
+    DrawOpts2d opts = {};
+    opts.scale.x = opts.scale.y = scale();
+    return opts;
 }
 
 bool inBounds(int x, int y) {
@@ -206,7 +220,7 @@ void initTitleMenu(GameState *st) {
     menu->font = &ubuntu_m32;
     menu->lines = 0;
     menu->alignWidth = 24;
-    menu->topCenter = vec2(st->width/2, st->height/2 + 140);
+    menu->topCenter = vec2(app->width/2, app->height/2 + 140);
     addMenuLine(menu, (char *)"start a game", MainMenu_StartGameButton);
     addMenuLine(menu, (char *)"options", MainMenu_OptionsButton);
     addMenuLine(menu, (char *)"high scores", MainMenu_HighScoresButton);
@@ -226,7 +240,7 @@ void initOptionsMenu(GameState *st) {
     menu->font = &mono_m18;
     menu->lines = 0;
     menu->alignWidth = 24;
-    menu->topCenter = vec2(st->width/2, 200);
+    menu->topCenter = vec2(app->width/2, 200);
     addMenuLine(menu, (char *)"[ keys ]");
     addMenuLine(menu, (char *)"left", &st->settings.controls.left);
     addMenuLine(menu, (char *)"right", &st->settings.controls.right);
@@ -327,39 +341,25 @@ bool compileExtraShaders(Renderer *r) {
     return true;
 }
 
-void rebakeFonts(GameState *st) {
-    rebakeFont(&ubuntu_m32, ubuntu_ttf_buffer, st->scaleFactor*32.0f);
-    ubuntu_m32.padding = 10.0f*st->scaleFactor;
-    rebakeFont(&ubuntu_m16, ubuntu_ttf_buffer, st->scaleFactor*16.0f);
-    ubuntu_m16.padding = 10.0f*st->scaleFactor;
-    rebakeFont(&mono_m18, mono_ttf_buffer, st->scaleFactor*18.0f);
-    mono_m18.padding = 10.0f*st->scaleFactor;
-}
-
-bool startGame(GameState *st, Renderer *r) {
+bool startGame(GameState *st, Renderer *r, App *a) {
+    assert(a);
+    app = a;
     if (!(ubuntu_ttf_buffer = readFile("./assets/fonts/Ubuntu-M.ttf"))) {
         return false;
     }
-    loadFontAtlas(&ubuntu_m32, ubuntu_ttf_buffer, st->scaleFactor*32.0f);
-    ubuntu_m32.padding = 10.0f*st->scaleFactor;
-    loadFontAtlas(&ubuntu_m16, ubuntu_ttf_buffer, st->scaleFactor*16.0f);
-    ubuntu_m16.padding = 10.0f*st->scaleFactor;
+    loadFontAtlas(&ubuntu_m32, ubuntu_ttf_buffer, 32.0f);
+    ubuntu_m32.padding = 10.0f;
+    loadFontAtlas(&ubuntu_m16, ubuntu_ttf_buffer, 16.0f);
+    ubuntu_m16.padding = 10.0f;
     
     if (!(mono_ttf_buffer = readFile("./assets/fonts/DejaVuSansMono-Bold.ttf"))) {
         return false;
     }
-    loadFontAtlas(&mono_m18, mono_ttf_buffer, st->scaleFactor*18.0f);
-    mono_m18.padding = 10.0f*st->scaleFactor;
+    loadFontAtlas(&mono_m18, mono_ttf_buffer, 18.0f);
+    mono_m18.padding = 10.0f;
 
     //sound_ready = loadAudioAndConvert("./assets/sounds/ready.wav");
     //if (sound_ready == -1) { return false; }
-
-    GameState init = {};
-    // is this stupid? probably
-    init.width = st->width;
-    init.height = st->height;
-    init.scaleFactor = st->scaleFactor;
-    *st = init;
 
     if (!loadSettings(&st->settings, "~/.testris.conf")) {
         log("settings not found, saving defaults");
@@ -367,6 +367,8 @@ bool startGame(GameState *st, Renderer *r) {
             log("settings save failed");
         }
     }
+
+    app->setWindowSize(600.0f*st->settings.renderScale, 800.0f*st->settings.renderScale);
 
     st->scenes[st->currentScene] = TITLE;
 
@@ -459,8 +461,8 @@ Rect border(GameState *st) {
     int board_height_px = (BOARD_HEIGHT * blockSide(st) + (BOARD_HEIGHT + 1) * blockPad(st));
 
     Vec2 ul_corner = {
-        .x = st->width/2.0f - board_width_px / 2.0f,
-        .y = st->height/2.0f - board_height_px / 2.0f,
+        .x = app->width/2.0f - board_width_px / 2.0f,
+        .y = app->height/2.0f - board_height_px / 2.0f,
     };
 
     return Rect{
@@ -538,7 +540,7 @@ void tryClearingLine(GameState *st, int line) {
         for (int y = line-1; y >= 0; y--) {
             st->board[y+1][x] = st->board[y][x];
             if (!st->board[y][x].full) continue;
-            st->blocks[st->board[y+1][x].blockIndex].targetPos = gridBlockPos(st, ul, x, y+1);
+            st->blocks[st->board[y+1][x].blockIndex].y = y + 1;
             st->blocks[st->board[y+1][x].blockIndex].tweenStep = 0;
         }
         st->board[0][x].full = false;
@@ -588,6 +590,8 @@ void placePiece(GameState *st, Piece *p) {
         b.color = colors[p->type];
         int x = p->x+i%4;
         int y = p->y+i/4;
+        b.x = x;
+        b.y = y;
         b.targetPos = gridBlockPos(st, ul, x, y);
         b.pos = b.targetPos;
         st->board[y][x].full = true;
@@ -651,6 +655,7 @@ bool updateGameState(GameState *st, InputData in) {
 }
 
 void renderBoard(Renderer *r, GameState *st) {
+    Vec2 ul = border(st).pos;
     for (int i = 0; i < MAX_BLOCKS; i++) {
         if (!st->blocks[i].inUse) continue;
         Block *b = &st->blocks[i];
@@ -661,7 +666,6 @@ void renderBoard(Renderer *r, GameState *st) {
         opts.rotation = b->rotation;
         drawRect(r, rx, opts);
     }
-    Vec2 ul = border(st).pos;
 
     // faller
     for (int i = 0; i < PIECE_BLOCK_TOTAL; i++) {
@@ -726,25 +730,29 @@ void renderGhost(Renderer *r, GameState *st) {
         Rect rx = rect(gridBlockPos(st, ul, cp.x+x, cp.y+y), blockSide(st), blockSide(st));
         rx.pos.x -= blockSide(st)/2;
         rx.pos.y -= blockSide(st)/2;
-        drawRectOutline(r, rx, c, 2.0f * st->scaleFactor);
+        drawRectOutline(r, rx, c, 2.0f);
     }
 }
 
 void renderGameOver(Renderer *r, GameState *st) {
-    drawTextCentered(r, &ubuntu_m32, st->width/2, st->height/2, "OOPS");
+    DrawOpts2d opts = scaleOpts();
+    drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2, "OOPS", opts);
 
-    drawTextCentered(r, &ubuntu_m16, st->width/2, st->height/2+128, "( r to restart )");
+    drawTextCentered(r, &ubuntu_m16, app->width/2, app->height/2+scale()*128.0f, "( r to restart )", opts);
 }
 
 void renderScore(Renderer *r, GameState *st) {
-    DrawOpts2d opts = {};
-    float h = st->scaleFactor*(ubuntu_m32.lineHeight * ubuntu_m32.lineHeightScale);
-    drawTextf(r, &ubuntu_m32, 16, 16+h, opts, (const char*)"score:\n%04d", st->score);
+    DrawOpts2d opts = scaleOpts();
+    Vec2 ul = border(st).pos;
+    float h = (ubuntu_m32.lineHeight * ubuntu_m32.lineHeightScale);
+    // TODO(ktravis): right-align text?
+    float left = ul.x - scale()*92.0f;
+    drawTextf(r, &ubuntu_m32, left, ul.y + scale()*1.75f*h, opts, (const char*)"score:\n%04d", st->score, opts);
 
-    drawText(r, &ubuntu_m32, 16, st->height-84, "hi:");
+    drawText(r, &ubuntu_m32, left, ul.y + border(st).h - scale()*(h+5.0f), "hi:", opts);
     char buf[5];
     snprintf(buf, sizeof(buf), "%04d", st->hiscore);
-    drawText(r, &ubuntu_m32, 16, st->height-48, buf);
+    drawText(r, &ubuntu_m32, left, ul.y + border(st).h - scale()*5.0f, buf, opts);
 }
 
 void renderQueue(Renderer *r, GameState *st) {
@@ -753,7 +761,8 @@ void renderQueue(Renderer *r, GameState *st) {
     float side = blockSide(st) * 0.7f;
     float pad = blockPad(st) * 0.7f;
 
-    Vec2 v = vec2(st->width - (4.0f*side+5.0f*pad), 80);
+    Rect b = border(st);
+    Vec2 v = vec2(b.x+b.w + (side+2.0f*pad), 80);
     Vec2 box = vec2(side, side);
     int y = 0;
     for (int q = 0; q < VISIBLE_QUEUE_BLOCKS; q++) {
@@ -803,7 +812,8 @@ void renderGameState(Renderer *r, GameState *st) {
 #ifdef DEBUG
     char buf[6];
     snprintf(buf, sizeof(buf), "%02.f", st->fps);
-    drawTextCentered(r, &mono_m18, st->width - 50.0f, 24, buf);
+    //drawTextCentered(r, &mono_m18, app->width - 50.0f, 24, buf, scaleOpts());
+    drawTextCentered(r, &mono_m18, app->width - 50.0f, 24, buf);
 #endif
 }
 
@@ -837,23 +847,28 @@ void renderTitle(Renderer *r, GameState *st) {
 
     DrawOpts2d bgOpts = {};
     bgOpts.shader = &titleBGShader;
-    Vec2 dim = vec2(st->width, st->height);
+    Vec2 dim = vec2(app->width, app->height);
     glUniform2fv(glGetUniformLocation(titleBGShader.handle, "dim"), 1, (GLfloat*)&dim);
-    drawRect(r, rect(0, 0, st->width, st->height), bgOpts);
+    drawRect(r, rect(0, 0, app->width, app->height), bgOpts);
 
     const int N = 6 * sizeof(title)/sizeof(char);
     VertexData vbuf[N];
 
-    DrawOpts2d opts = {};
+    DrawOpts2d opts = scaleOpts();
     opts.meshBuffer = Mesh{.count = N, .data = vbuf};
     opts.shader = &titleShader;
 
-    drawTextCentered(r, &mono_m18, st->width/2, st->height/2 - 150, title, opts);
+    drawTextCentered(r, &mono_m18, app->width/2, 0.35f*app->height, title, opts);
     //Vec2 dim = getTextDimensions(title, &mono_m18);
     //opts.origin.x = dim.x / 2;
     //opts.origin.y = -dim.y / 2;
-    //drawText(r, &mono_m18, st->width/2, 0, title, opts);
-    drawMenu(r, &st->titleMenu, defaultHotOpts(st->elapsed));
+    //drawText(r, &mono_m18, app->width/2, 0, title, opts);
+
+    st->titleMenu.topCenter = vec2(app->width/2, app->height/2 + 140);
+    st->titleMenu.font->scale = scale();
+    DrawOpts2d hotOpts = defaultHotOpts(st->elapsed);
+    scale(&hotOpts.scale, scale());
+    drawMenu(r, &st->titleMenu, hotOpts, scaleOpts());
 }
 
 float moveRate = 12.0f;
@@ -865,7 +880,7 @@ void gameOver(GameState *st) {
 }
 
 bool onscreen(GameState *st, Block *b) {
-    return contains(rect(-blockSide(st), -blockSide(st), st->width+blockSide(st), st->height+blockSide(st)), b->pos);
+    return contains(rect(-blockSide(st), -blockSide(st), app->width+blockSide(st), app->height+blockSide(st)), b->pos);
 }
 
 bool updateInRound(GameState *st, InputData in) {
@@ -977,14 +992,15 @@ bool updateInRound(GameState *st, InputData in) {
             spawnFaller(st);
         }
     }
+    Vec2 ul = border(st).pos;
     for (int i = 0; i < MAX_BLOCKS; i++) {
         if (!st->blocks[i].inUse) continue;
         Block *b = &st->blocks[i];
         if (b->onBoard) {
-            if (b->tweenStep < 1) {
-                b->tweenStep += MIN(in.dt / 500.0f, 1.0f);
-                b->pos = LERP(b->pos, b->targetPos, SQUARED(b->tweenStep));
-            }
+            b->targetPos = gridBlockPos(st, ul, b->x, b->y);
+            b->tweenStep += MIN(in.dt / 400.0f, 1.0f);
+            if (b->tweenStep > 1) b->tweenStep = 1;
+            b->pos = LERP(b->pos, b->targetPos, SQUARED(b->tweenStep));
         } else {
             b->timeLeft -= in.dt;
             if (onscreen(st, b) && b->timeLeft > 0) {
@@ -1001,11 +1017,12 @@ bool updateInRound(GameState *st, InputData in) {
 
 void renderInRound(Renderer *r, GameState *st) {
     if (st->paused) {
-        drawTextCentered(r, &ubuntu_m32, st->width/2, st->height/2, "PAUSED");
+        //drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2, "PAUSED", scaleOpts());
+        drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2, "PAUSED");
         return;
     }
 
-    drawRectOutline(r, border(st), white, st->scaleFactor);
+    drawRectOutline(r, border(st), white, 2.0f);
     if (st->settings.showGhost)
         renderGhost(r, st);
     renderBoard(r, st);
@@ -1044,6 +1061,14 @@ bool updateOptions(GameState *st, InputData in) {
     }
     Settings last = st->settings;
     MenuButton *btn = updateMenu(&st->options, in);
+    if (btn == OptionsMenu_ScaleUpButton) {
+        st->settings.renderScale += 0.25f;
+        app->setWindowSize(600.0f*st->settings.renderScale, 800.0f*st->settings.renderScale);
+    } else if (btn == OptionsMenu_ScaleDownButton) {
+        st->settings.renderScale -= 0.25f;
+        if (st->settings.renderScale < 0) st->settings.renderScale = 0.25f;
+        app->setWindowSize(600.0f*st->settings.renderScale, 800.0f*st->settings.renderScale);
+    }
     if (!EQUAL(st->settings, last)) {
         if (!saveSettings(&st->settings, "~/.testris.conf")) {
             log("settings save failed");
@@ -1055,25 +1080,18 @@ bool updateOptions(GameState *st, InputData in) {
         return true;
     } else if (btn == OptionsMenu_QuitButton) {
         return false;
-    } else if (btn == OptionsMenu_ScaleUpButton) {
-
-        //st->scaleFactor *= 2;
-        //rebakeFonts(st);
-    } else if (btn == OptionsMenu_ScaleDownButton) {
-        st->thing -= 0.1f;
-        //st->scaleFactor /= 2;
-        //rebakeFonts(st);
     }
     return true;
 }
 
 void renderOptions(Renderer *r, GameState *st) {
-    drawMenu(r, &st->options, defaultHotOpts(st->elapsed));
+    drawMenu(r, &st->options, defaultHotOpts(st->elapsed), scaleOpts());
 
     // draw help text
+    //DrawOpts2d opts = scaleOpts();
     DrawOpts2d opts = {};
     opts.tint.r = opts.tint.g = opts.tint.b = 0.65;
-    drawTextCentered(r, st->options.font, st->width/2, st->height - 2.0f*(st->options.font->lineHeight*st->options.font->lineHeightScale), "arrow keys + enter / mouse + click", opts);
+    drawTextCentered(r, st->options.font, app->width/2, app->height - 2.0f*(st->options.font->lineHeight*st->options.font->lineHeightScale), "arrow keys + enter / mouse + click", opts);
 }
 
 void renderTransition(Renderer *r, GameState *st) {
@@ -1086,14 +1104,14 @@ void renderTransition(Renderer *r, GameState *st) {
         {
             t.opts.tint = white;
             t.opts.tint.a = (t.z <= 0.5f ? 2*t.z : 2*(1 - t.z));
-            drawRect(r, rect(0, 0, st->width, st->height), t.opts);
+            drawRect(r, rect(0, 0, app->width, app->height), t.opts);
             break;
         }
     case Transition::CHECKER_IN_OUT:
         {
-            int side = st->scaleFactor*50;
-            int nx = 1 + st->width / side;
-            int ny = 1 + st->height / side;
+            int side = 50 * scale();
+            int nx = 1 + app->width / side;
+            int ny = 1 + app->height / side;
             float totalDelay = 0.5f;
             float hesitation = 1.8;
             for (int i = 0; i < nx*ny; i++) {
@@ -1123,9 +1141,9 @@ void renderTransition(Renderer *r, GameState *st) {
         }
     case Transition::CHECKER_IN_OUT_ROTATE:
         {
-            int side = st->scaleFactor*30;
-            int nx = 1 + st->width / side;
-            int ny = 1 + st->height / side;
+            int side = 30 * scale();
+            int nx = 1 + app->width / side;
+            int ny = 1 + app->height / side;
             float totalDelay = 0.5f;
             for (int i = 0; i < nx*ny; i++) {
                 float d = totalDelay * (0.3*(i%nx) / nx + 0.7*(i/nx)/ny);
@@ -1147,10 +1165,10 @@ void renderTransition(Renderer *r, GameState *st) {
         }
     case Transition::ROWS_ACROSS:
         {
-            int side = st->scaleFactor*75;
-            int ny = 1 + st->height / side;
-            float rw = st->width*2;
-            float offset = st->width;
+            int side = 75 * scale();
+            int ny = 1 + app->height / side;
+            float rw = app->width*2;
+            float offset = app->width;
 
             //float totalDelay = 0.5f;
             for (int i = 0; i < ny; i++) {
@@ -1163,7 +1181,7 @@ void renderTransition(Renderer *r, GameState *st) {
                 float so = offset*((float)i+1)/ny;
                 float eo = offset*(1 - ((float)i+1)/ny);
                 float startx = -(rw+so);
-                float endx = st->width+eo;
+                float endx = app->width+eo;
                 rx.x = startx + (endx-startx)*z;
                 rx.y = side * i;
 
@@ -1195,15 +1213,21 @@ void renderScene(Renderer *r, GameState *st, Scene s) {
     // updated all at once (once the shader is bound, also);
     // really would like to refactor the uniforms generally as well
     useShader(r, &titleShader);
-    updateShader(&titleShader, st->elapsed, 0, &r->proj, 0, 0, &st->lastMousePos);
+    glUniform1f(r->currentShader->uniforms.timeLoc, st->elapsed);
+    glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
+    glUniform2fv(r->currentShader->uniforms.mouseLoc, 1, (const GLfloat *)&st->lastMousePos);
 
     useShader(r, &titleBGShader);
-    updateShader(&titleBGShader, st->elapsed, 0, &r->proj, 0, 0, 0);
-    Vec2 dim = vec2(st->width, st->height);
+    glUniform1f(r->currentShader->uniforms.timeLoc, st->elapsed);
+    glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
+    Vec2 dim = vec2(app->width, app->height);
     glUniform2fv(glGetUniformLocation(titleBGShader.handle, "dim"), 1, (GLfloat*)&dim);
 
+    // TODO(ktravis): we should do this inside the "useShader" call maybe, or perhaps something similar in the renderer
+
     useShader(r, &r->defaultShader);
-    updateShader(r->currentShader, st->elapsed, 0, &r->proj, 0, 0, &st->lastMousePos);
+    glUniform1f(r->currentShader->uniforms.timeLoc, st->elapsed);
+    glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
 
     switch (s) {
     case IN_ROUND:

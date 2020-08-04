@@ -5,8 +5,7 @@ bool initWindow(Window *w, const char *title, int width, int height) {
             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
             width, height, SDL_WINDOW_OPENGL);
 
-    // TODO: why does this not seem to work
-    SDL_SetWindowResizable(w->handle, SDL_FALSE);
+    SDL_SetWindowResizable(w->handle, SDL_TRUE);
 
     w->ctx = SDL_GL_CreateContext(w->handle);
     if (!w->ctx) {

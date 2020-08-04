@@ -18,46 +18,43 @@ void *watchLoop(Watcher *w) {
 typedef void *(*threadFunc)(void*);
 #endif
 
-#define WINDOW_WIDTH  1200
-#define WINDOW_HEIGHT 1600
+#define WINDOW_WIDTH  600
+#define WINDOW_HEIGHT 800
+
+Renderer r;
 
 const char *title = "testris";
 App app = {
    .title  = title,
    .width  = WINDOW_WIDTH,
    .height = WINDOW_HEIGHT,
-   .scaleFactor = 2.0f,
 };
 
-Renderer r;
+void resizeWindow(int w, int h) {
+    app.width = w;
+    app.height = h;
+    r.screenWidth = (float)w;
+    r.screenHeight = (float)h;
+    SDL_SetWindowSize(app.window.handle, r.screenWidth, r.screenHeight);
+    renderToScreen(&r);
+}
     
 GameState st = {};
-
-RenderTarget boi;
 
 bool step() {
     clear(&r, black);
     InputData in = step(&app);
     bool result = updateGameState(&st, in);
 
-    assert(renderToTexture(&r, &boi));
-    clear(&r, red);
+    clear(&r, black);
     renderGameState(&r, &st);
-    drawRectOutline(&r, rect(40, 40, 100, 100), white, 5);
 
-    renderToScreen(&r);
-    renderGameState(&r, &st);
-    //r.screenWidth = st.thing * st.width;
-    //r.screenHeight = st.thing * st.height;
-    DrawOpts2d opts = {};
-    drawTexturedQuad(&r, in.mouse, boi.w, boi.h, boi.tex, rect(0, 1, 1, 0), opts);
     swapWindow(&app.window);
     return result;
 }
 
 int main(int argc, char *argv[]) {
 #ifdef __EMSCRIPTEN__
-    // EM_ASM is a macro to call in-line JavaScript code.
     //EM_ASM(
         //// Make a directory other than '/'
         //FS.mkdir('/offline');
@@ -77,6 +74,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    app.setWindowSize = resizeWindow;
+
     // setup default 2d renderer
     initRenderer(&r, app.width, app.height);
     if (!setupDefaultShaders(&r)) {
@@ -85,18 +84,9 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    if (!createRenderTarget(&boi, app.width, app.height)) {
-        log("failed creating render target");
-        return 1;
-    }
-
-    //renderToTexture(&r, &buf, app.width, app.height);
     renderToScreen(&r);
 
-    st.width = app.width;
-    st.height = app.height;
-    st.scaleFactor = app.scaleFactor;
-    if (!startGame(&st, &r)) {
+    if (!startGame(&st, &r, &app)) {
         log("start game failed, exiting");
         // TODO: really we should be jumping to the cleanup routine here rather
         // than returning, but for now this is fine.

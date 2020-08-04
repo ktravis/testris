@@ -44,6 +44,7 @@ inline void useShader(Renderer *r, ShaderProgram *s) {
         glUseProgram(s->handle);
         r->currentShader = s;
         r->currentShaderHandle = s->handle;
+        glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
     }
 }
 
@@ -117,6 +118,8 @@ void renderToScreen(Renderer *r) {
     GLfloat clipNear = 0.0f;
     GLfloat clipFar = 10.0f;
     ortho(r->proj, 0, r->screenWidth, 0, r->screenHeight, clipNear, clipFar);
+    if (r->currentShader)
+        glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
 }
 
 bool createRenderTarget(RenderTarget *rt, uint32_t w, uint32_t h) {
@@ -151,10 +154,12 @@ bool renderToTexture(Renderer *r, RenderTarget *rt) {
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         return false;
 
-    //glViewport(0, 0, rt->w, rt->h);
-    //GLfloat clipNear = 0.0f;
-    //GLfloat clipFar = 10.0f;
-    //ortho(r->proj, 0, rt->w, rt->h, 0, clipNear, clipFar);
+    glViewport(0, 0, rt->w, rt->h);
+    GLfloat clipNear = 0.0f;
+    GLfloat clipFar = 10.0f;
+    ortho(r->proj, 0, (float)rt->w, 0, (float)rt->h, clipNear, clipFar);
+    if (r->currentShader)
+        glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
     return true;
 }
 
@@ -170,35 +175,15 @@ GLenum glDrawMode(DrawMode m) {
     return GL_TRIANGLES;
 }
 
-void updateShader(ShaderProgram *s, float time, Mat4 *modelview, Mat4 *proj, TextureHandle *tex, Color *tint, Vec2 *mouse) {
-    if (time)
-        glUniform1f(s->uniforms.timeLoc, time);
-
-    if (modelview)
-        glUniformMatrix4fv(s->uniforms.modelviewLoc, 1, GL_FALSE, (const GLfloat *)*modelview);
-
-    if (proj)
-        glUniformMatrix4fv(s->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)*proj);
-
-    if (tex)
-        glUniform1i(s->uniforms.texLoc, *tex);
-
-    if (tint)
-        glUniform4fv(s->uniforms.tintLoc, 1, (const GLfloat *)tint);
-
-    if (mouse && s->uniforms.mouseLoc != -1)
-    {
-        glUniform2fv(s->uniforms.mouseLoc, 1, (const GLfloat *)mouse);
-    }
-}
-
 // TODO: group by common mesh / options and draw in batches
 void draw(Renderer *r, DrawCall call) {
     // TODO(ktravis): mesh should have its own vbo that doesn't need to be
     // reloaded every time?
     glBufferData(GL_ARRAY_BUFFER, call.mesh->count*sizeof(VertexData), call.mesh->data, GL_DYNAMIC_DRAW);
+    // TODO(ktravis): useTexture use in more places?
     useTexture(r, call.texture);
-    updateShader(r->currentShader, 0 /* TIME */, &call.uniforms.model, 0, 0, &call.uniforms.tint, 0);
+    glUniformMatrix4fv(r->currentShader->uniforms.modelviewLoc, 1, GL_FALSE, (const GLfloat *)&call.uniforms.model);
+    glUniform4fv(r->currentShader->uniforms.tintLoc, 1, (const GLfloat *)&call.uniforms.tint);
     glLineWidth(call.uniforms.lineWidth);
     glDrawArrays(glDrawMode(call.mode), 0, call.mesh->count);
 }
