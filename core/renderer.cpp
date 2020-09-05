@@ -114,7 +114,6 @@ void cleanupRenderer(Renderer *r) {
 void renderToScreen(Renderer *r) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, r->screenWidth, r->screenHeight);
-
     GLfloat clipNear = 0.0f;
     GLfloat clipFar = 10.0f;
     ortho(r->proj, 0, r->screenWidth, 0, r->screenHeight, clipNear, clipFar);

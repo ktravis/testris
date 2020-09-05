@@ -37,10 +37,10 @@ void rebakeFont(FontAtlas *font, const unsigned char *font_data, float size) {
 
     font->size = size;
 
-    font->scale = stbtt_ScaleForPixelHeight(&font->info, size);
+    float s = stbtt_ScaleForPixelHeight(&font->info, size);
     int asc, desc, gap;
     stbtt_GetFontVMetrics(&font->info, &asc, &desc, &gap);
-    font->lineHeight = font->scale * (float)(asc - desc + gap);
+    font->lineHeight = s * (float)(asc - desc + gap);
 }
 
 Vec2 getTextDimensions(const char *text, FontAtlas *font) {
@@ -52,7 +52,7 @@ Vec2 getTextDimensions(const char *text, FontAtlas *font) {
     while ((u = *text)) {
         text++;
         if (u == '\n') {
-            h += font->lineHeight * font->lineHeightScale;
+            h += font->lineHeight;
             w = 0;
         } else {
             stbtt_aligned_quad q;
@@ -65,7 +65,7 @@ Vec2 getTextDimensions(const char *text, FontAtlas *font) {
             }
         }
     }
-    h += font->lineHeight * font->lineHeightScale;
+    h += font->lineHeight;
     return vec2(maxwidth, h);
 }
 

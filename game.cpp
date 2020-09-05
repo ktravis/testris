@@ -220,7 +220,7 @@ void initTitleMenu(GameState *st) {
     menu->font = &ubuntu_m32;
     menu->lines = 0;
     menu->alignWidth = 24;
-    menu->topCenter = vec2(app->width/2, app->height/2 + 140);
+    menu->topCenter = vec2(app->width/2, app->height/2 + 140*scale());
     addMenuLine(menu, (char *)"start a game", MainMenu_StartGameButton);
     addMenuLine(menu, (char *)"options", MainMenu_OptionsButton);
     addMenuLine(menu, (char *)"high scores", MainMenu_HighScoresButton);
@@ -240,7 +240,7 @@ void initOptionsMenu(GameState *st) {
     menu->font = &mono_m18;
     menu->lines = 0;
     menu->alignWidth = 24;
-    menu->topCenter = vec2(app->width/2, 200);
+    menu->topCenter = vec2(app->width/2, 200*scale());
     addMenuLine(menu, (char *)"[ keys ]");
     addMenuLine(menu, (char *)"left", &st->settings.controls.left);
     addMenuLine(menu, (char *)"right", &st->settings.controls.right);
@@ -744,7 +744,7 @@ void renderGameOver(Renderer *r, GameState *st) {
 void renderScore(Renderer *r, GameState *st) {
     DrawOpts2d opts = scaleOpts();
     Vec2 ul = border(st).pos;
-    float h = (ubuntu_m32.lineHeight * ubuntu_m32.lineHeightScale);
+    float h = scale()*ubuntu_m32.lineHeight;
     // TODO(ktravis): right-align text?
     float left = ul.x - scale()*92.0f;
     drawTextf(r, &ubuntu_m32, left, ul.y + scale()*1.75f*h, opts, (const char*)"score:\n%04d", st->score, opts);
@@ -864,10 +864,12 @@ void renderTitle(Renderer *r, GameState *st) {
     //opts.origin.y = -dim.y / 2;
     //drawText(r, &mono_m18, app->width/2, 0, title, opts);
 
-    st->titleMenu.topCenter = vec2(app->width/2, app->height/2 + 140);
-    st->titleMenu.font->scale = scale();
+    st->titleMenu.topCenter = vec2(app->width/2, app->height/2 + 140*scale());
+    st->titleMenu.scale = scaleOpts().scale;
+
     DrawOpts2d hotOpts = defaultHotOpts(st->elapsed);
     scale(&hotOpts.scale, scale());
+
     drawMenu(r, &st->titleMenu, hotOpts, scaleOpts());
 }
 
@@ -1059,6 +1061,11 @@ bool updateOptions(GameState *st, InputData in) {
             }
         }
     }
+
+    // I'd rather do this in some helper function
+    st->options.topCenter = vec2(app->width/2, 200*scale());
+    st->options.scale = scaleOpts().scale;
+
     Settings last = st->settings;
     MenuButton *btn = updateMenu(&st->options, in);
     if (btn == OptionsMenu_ScaleUpButton) {
@@ -1085,13 +1092,14 @@ bool updateOptions(GameState *st, InputData in) {
 }
 
 void renderOptions(Renderer *r, GameState *st) {
-    drawMenu(r, &st->options, defaultHotOpts(st->elapsed), scaleOpts());
+    DrawOpts2d hotOpts = defaultHotOpts(st->elapsed);
+    scale(&hotOpts.scale, scale());
+    drawMenu(r, &st->options, hotOpts, scaleOpts());
 
     // draw help text
-    //DrawOpts2d opts = scaleOpts();
-    DrawOpts2d opts = {};
+    DrawOpts2d opts = scaleOpts();
     opts.tint.r = opts.tint.g = opts.tint.b = 0.65;
-    drawTextCentered(r, st->options.font, app->width/2, app->height - 2.0f*(st->options.font->lineHeight*st->options.font->lineHeightScale), "arrow keys + enter / mouse + click", opts);
+    drawTextCentered(r, st->options.font, app->width/2, app->height - 2.0f*scale()*st->options.font->lineHeight, "arrow keys + enter / mouse + click", opts);
 }
 
 void renderTransition(Renderer *r, GameState *st) {

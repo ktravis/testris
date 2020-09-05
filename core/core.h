@@ -296,7 +296,6 @@ struct FontAtlas {
     float size;
     float scale;
     float lineHeight;
-    float lineHeightScale = 1.0f;
     float padding = 10.0f;
 };
 
@@ -636,6 +635,7 @@ enum TextAlignment {
 struct MenuContext {
     // TODO(ktravis): let's make this more immediate and not bake the topCenter into the context
     Vec2 topCenter;
+    Vec2 scale = (Vec2){1, 1};
     MenuLine *lines;
     int hotIndex;
     InteractionType interaction;

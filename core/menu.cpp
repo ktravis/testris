@@ -72,6 +72,7 @@ Rect menuLineDimensions(MenuContext *ctx, MenuLine item, Vec2 pos) {
     char s[255];
     menuLineText(ctx, s, sizeof(s), item);
     r.box = getTextDimensions(s, ctx->font);
+    scale(&r.box, ctx->scale);
     r.pos = pos;
     switch (ctx->alignment) {
     case TextAlignment::CENTER:
@@ -145,7 +146,7 @@ MenuButton *updateMenu(MenuContext *ctx, InputData in) {
         ctx->hotIndex = -1;
         Vec2 pos = ctx->topCenter;
         for (int i = 0; i < array_len(ctx->lines); i++) {
-            pos.y = ctx->topCenter.y + i * (ctx->font->lineHeight*ctx->font->lineHeightScale);
+            pos.y = ctx->topCenter.y + (i + 0.25f) * ctx->scale.y * ctx->font->lineHeight;
             MenuLine *item = &ctx->lines[i];
             if (item->type == HEADING) {
                 continue;
@@ -207,8 +208,11 @@ void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts, DrawOpts2d opts
         menuLineText(ctx, s, sizeof(s), ctx->lines[i]);
 
         // debug box
-        //Rect dim = menuLineDimensions(ctx, ctx->lines[i], pos);
-        //drawRectOutline(r, dim, red);
+        pos.y = ctx->topCenter.y + (i+0.25) * ctx->scale.y * ctx->font->lineHeight;
+        Rect dim = menuLineDimensions(ctx, ctx->lines[i], pos);
+        drawRectOutline(r, dim, red);
+
+        pos.y = ctx->topCenter.y + i * ctx->scale.y * ctx->font->lineHeight;
 
         switch (ctx->alignment) {
         case TextAlignment::CENTER:
@@ -218,6 +222,5 @@ void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts, DrawOpts2d opts
             drawText(r, ctx->font, pos.x, pos.y, s, hot ? hotOpts : opts);
             break;
         }
-        pos.y += ctx->font->lineHeight*ctx->font->lineHeightScale; 
     }
 }
