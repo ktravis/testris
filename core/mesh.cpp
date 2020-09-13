@@ -41,3 +41,26 @@ Mesh texturedQuadMesh(VertexData data[6], Rect v, Rect st) {
 Mesh texturedQuadMesh(VertexData data[6], Rect st) {
     return texturedQuadMesh(data, rect(0, 0, 1, 1), st);
 }
+
+// This would be easier if we could just set draw mode to triangle strip
+Mesh polygon(int points, float radius) {
+    VertexData *data = (VertexData *)calloc(3*points, sizeof(VertexData));
+    Vec4 v = {};
+    Vec4 center = {0, 0, 0, 1};
+    float dtheta = 2*M_PI/points;
+    for (int i = 0; i < points; i++) {
+       v.x = radius*cosf(i*dtheta);
+       v.y = radius*sinf(i*dtheta);
+       data[3*i].pos = add(center, v);
+       data[3*i].tex = vec2(v.x, v.y);
+
+       data[3*i+1].pos = center;
+       data[3*i+1].tex = vec2(center.x, center.y);
+
+       v.x = radius*cosf((i+1)*dtheta);
+       v.y = radius*sinf((i+1)*dtheta);
+       data[3*i+2].pos = add(center, v);
+       data[3*i+2].tex = vec2(v.x, v.y);
+    }
+    return (Mesh){.count=3*points, .data=data};
+}

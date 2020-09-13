@@ -10,7 +10,7 @@ inline float updateFrameTime(App *app) {
 }
 
 bool initApp(App *app, int mode) {
-    if  (app->width == 0) app->width = DEFAULT_WINDOW_WIDTH;
+    if (app->width == 0) app->width  = DEFAULT_WINDOW_WIDTH;
     if (app->height == 0) app->height = DEFAULT_WINDOW_HEIGHT;
 
     app->mode = mode;

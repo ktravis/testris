@@ -231,6 +231,7 @@ void initTitleMenu(GameState *st) {
 
 DEFINE_BUTTON(OptionsMenu_ResumeButton);
 DEFINE_BUTTON(OptionsMenu_QuitButton);
+DEFINE_BUTTON(OptionsMenu_ResetDefaults);
 
 DEFINE_BUTTON(OptionsMenu_ScaleUpButton);
 DEFINE_BUTTON(OptionsMenu_ScaleDownButton);
@@ -266,6 +267,7 @@ void initOptionsMenu(GameState *st) {
     addMenuLine(menu, (char *)"quit", OptionsMenu_QuitButton);
     addMenuLine(menu, (char *)"scale up", OptionsMenu_ScaleUpButton);
     addMenuLine(menu, (char *)"scale down", OptionsMenu_ScaleDownButton);
+    addMenuLine(menu, (char *)"reset defaults", OptionsMenu_ResetDefaults);
 
     menu->hotIndex = 1;
 }
@@ -1005,7 +1007,7 @@ bool updateInRound(GameState *st, InputData in) {
             b->timeLeft -= in.dt;
             if (onscreen(st, b) && b->timeLeft > 0) {
                 b->rotation += b->rotv;
-                b->pos = add(b->pos, b->vel);
+                b->pos = add(b->pos, scaled(b->vel, scale()));
                 b->vel.y += .25f;
             } else {
                 b->inUse = false;
@@ -1015,6 +1017,26 @@ bool updateInRound(GameState *st, InputData in) {
     return true;
 }
 
+void renderBackground(Renderer *r, GameState *st) {
+    static Mesh m = {};
+    if (!m.data) {
+        m = polygon(6, 100);
+    }
+    DrawOpts2d opts;
+    opts.tint = white;
+    opts.tint.r = 0.9f-0.4f*cosf(st->elapsed/7500.0f);
+    opts.tint.b = 0.3f+0.4f*sinf(st->elapsed/2500.0f);
+    opts.tint.g = 0.35f+0.3f*cosf(st->elapsed/5500.0f);
+    opts.tint.a = 0.08f;
+    const int n = 10;
+    for (int i = 0; i < n; i++) {
+        opts.scale = vec2(scale()*7*((float)i)/n, scale()*7*((float)i)/n);
+        opts.rotation = M_PI/2 + st->elapsed/(i*20.0f);
+        Vec2 center = vec2(r->screenWidth/2+scale()*60.0f/i*cosf(st->elapsed/2200.0f), r->screenHeight/2+scale()*60.0f/i*sinf(st->elapsed/2200.0f));
+        drawMesh(r, &m, center, r->defaultTexture, opts);
+    }
+}
+
 void renderInRound(Renderer *r, GameState *st) {
     if (st->paused) {
         //drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2, "PAUSED", scaleOpts());
@@ -1022,6 +1044,7 @@ void renderInRound(Renderer *r, GameState *st) {
         return;
     }
 
+    renderBackground(r, st);
     drawRectOutline(r, border(st), white, 2.0f);
     if (st->settings.showGhost)
         renderGhost(r, st);
@@ -1068,6 +1091,9 @@ bool updateOptions(GameState *st, InputData in) {
     } else if (btn == OptionsMenu_ScaleDownButton) {
         float s = (roundf(ceilf(scale() * 4.0f-.05f) - 1) / 4.0f);
         SDL_SetWindowSize(app->window.handle, 600.0f*s, 800.0f*s);
+    } else if (btn == OptionsMenu_ResetDefaults) {
+        Settings s = {};
+        st->settings = s;
     }
     if (!EQUAL(st->settings, last)) {
         if (!saveSettings(&st->settings, "~/.testris.conf")) {

@@ -166,3 +166,11 @@ inline Vec4 vec4(Vec3 xyz, float w) {
 inline Vec4 vec4() {
     return vec4(0, 0, 0, 1);
 }
+
+Vec4 add(Vec4 a, Vec4 b) {
+    a.x += b.x;
+    a.y += b.y;
+    a.z += b.z;
+    a.w += b.w;
+    return a;
+}

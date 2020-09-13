@@ -93,6 +93,7 @@ Vec4 vec4(float x = 0.0f, float y = 0.0f, float z = 0.0f, float w = 0.0f);
 Vec4 vec4(Vec2 xy, float z = 0.0f, float w = 0.0f);
 Vec4 vec4(Vec3 xyz, float w = 0.0f);
 Vec4 vec4();
+Vec4 add(Vec4 a, Vec4 b);
 
 // rect.cpp
 //
@@ -400,6 +401,7 @@ struct Mesh {
 extern Mesh quadMesh;
 Mesh texturedQuadMesh(VertexData data[6], Rect v, Rect st);
 Mesh texturedQuadMesh(VertexData data[6], Rect st);
+Mesh polygon(int count, float radius);
 
 // renderer.cpp
 //
