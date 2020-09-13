@@ -181,6 +181,7 @@ void draw(Renderer *r, DrawCall call) {
     glBufferData(GL_ARRAY_BUFFER, call.mesh->count*sizeof(VertexData), call.mesh->data, GL_DYNAMIC_DRAW);
     // TODO(ktravis): useTexture use in more places?
     useTexture(r, call.texture);
+    translate(call.uniforms.model, vec3(r->offset));
     glUniformMatrix4fv(r->currentShader->uniforms.modelviewLoc, 1, GL_FALSE, (const GLfloat *)&call.uniforms.model);
     glUniform4fv(r->currentShader->uniforms.tintLoc, 1, (const GLfloat *)&call.uniforms.tint);
     glLineWidth(call.uniforms.lineWidth);

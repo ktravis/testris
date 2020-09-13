@@ -44,6 +44,7 @@ Mesh texturedQuadMesh(VertexData data[6], Rect st) {
 
 // This would be easier if we could just set draw mode to triangle strip
 Mesh polygon(int points, float radius) {
+    // TODO: don't allocate this, just pass it in
     VertexData *data = (VertexData *)calloc(3*points, sizeof(VertexData));
     Vec4 v = {};
     Vec4 center = {0, 0, 0, 1};

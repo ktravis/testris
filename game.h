@@ -87,6 +87,7 @@ struct Settings {
     } controls;
     bool muted = false;
     bool showGhost = true;
+    bool screenShake = true;
     float renderScale = 1.0f;
 };
 
@@ -148,6 +149,7 @@ struct GameState {
     bool moving = false;
     float moveDelayMillis = 0;
     float dropAccel = 0;
+    float shaking;
 
     // OPTIONS
     MenuContext options;

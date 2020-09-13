@@ -5,14 +5,15 @@
 // TODO:
 // - spawn delay
 // - do scoring right
-// - screen shake
 // - score indicators
-// - animated backgrounds
 // - score animation
 // - game over animation
 // - save the high score somewhere
 // - sounds
 // - music
+//
+// - screen shake
+// - animated backgrounds
 
 uint8_t *ubuntu_ttf_buffer;
 FontAtlas ubuntu_m16;
@@ -259,6 +260,7 @@ void initOptionsMenu(GameState *st) {
     addMenuLine(menu, (char *)"[ settings ]");
     addMenuLine(menu, (char *)"muted", &st->settings.muted);
     addMenuLine(menu, (char *)"ghost", &st->settings.showGhost);
+    addMenuLine(menu, (char *)"screen shake", &st->settings.screenShake);
 
     addMenuLine(menu, (char *)"");
     addMenuLine(menu, (char *)"");
@@ -285,7 +287,8 @@ DEFINE_SERDE(Settings,
     KEY_FIELD(pause),
     KEY_FIELD(mute),
     BOOL_FIELD(muted),
-    BOOL_FIELD(showGhost)
+    BOOL_FIELD(showGhost),
+    BOOL_FIELD(screenShake)
 )
 
 bool loadSettings(Settings *s, const char *filename) {
@@ -561,6 +564,7 @@ void clearLines(GameState *st) {
         }
         tryClearingLine(st, y);
         st->score++;
+        st->shaking += st->shaking > 1 ? 250.0f : 600.0f;
         if (st->score > st->hiscore) {
             st->hiscore = st->score;
         }
@@ -982,6 +986,8 @@ bool updateInRound(GameState *st, InputData in) {
         st->moveDelayMillis = 0;
     }
 
+	if (st->shaking > 0)
+    	st->shaking -= in.dt;
     st->droptick += in.dt;
     float tick = tickInterval - st->score*20;
     if (tick < 200) {
@@ -1038,13 +1044,19 @@ void renderBackground(Renderer *r, GameState *st) {
 }
 
 void renderInRound(Renderer *r, GameState *st) {
+    if (st->shaking > 0 && st->settings.screenShake) {
+        r->offset = vec2(powf(st->shaking/750.0f,2)*randn(scale()*10), powf(st->shaking/750.0f,2)*randn(scale()*10));
+    } else {
+        r->offset.x = 0;
+        r->offset.y = 0;
+    }
+    renderBackground(r, st);
     if (st->paused) {
         //drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2, "PAUSED", scaleOpts());
         drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2, "PAUSED");
         return;
     }
 
-    renderBackground(r, st);
     drawRectOutline(r, border(st), white, 2.0f);
     if (st->settings.showGhost)
         renderGhost(r, st);

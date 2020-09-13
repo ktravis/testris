@@ -450,6 +450,7 @@ struct Renderer {
     uint32_t screenHeight;
 
     Mat4 proj;
+    Vec2 offset = {};
 
     ShaderHandle currentShaderHandle = 0;
     ShaderProgram *currentShader = NULL;
