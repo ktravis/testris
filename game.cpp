@@ -368,8 +368,6 @@ bool startGame(GameState *st, Renderer *r, App *a) {
         }
     }
 
-    app->setWindowSize(600.0f*st->settings.renderScale, 800.0f*st->settings.renderScale);
-
     st->scenes[st->currentScene] = TITLE;
 
     //int32_t sound_hiscore = loadAudioAndConvert("assets/sounds/hiscore.wav");
@@ -1062,19 +1060,14 @@ bool updateOptions(GameState *st, InputData in) {
         }
     }
 
-    // I'd rather do this in some helper function
-    st->options.topCenter = vec2(app->width/2, 200*scale());
-    st->options.scale = scaleOpts().scale;
-
     Settings last = st->settings;
     MenuButton *btn = updateMenu(&st->options, in);
     if (btn == OptionsMenu_ScaleUpButton) {
-        st->settings.renderScale += 0.25f;
-        app->setWindowSize(600.0f*st->settings.renderScale, 800.0f*st->settings.renderScale);
+        float s = (roundf(floorf(scale() * 4.0f+0.5f) + 1) / 4.0f);
+        SDL_SetWindowSize(app->window.handle, 600.0f*s, 800.0f*s);
     } else if (btn == OptionsMenu_ScaleDownButton) {
-        st->settings.renderScale -= 0.25f;
-        if (st->settings.renderScale < 0) st->settings.renderScale = 0.25f;
-        app->setWindowSize(600.0f*st->settings.renderScale, 800.0f*st->settings.renderScale);
+        float s = (roundf(ceilf(scale() * 4.0f-.05f) - 1) / 4.0f);
+        SDL_SetWindowSize(app->window.handle, 600.0f*s, 800.0f*s);
     }
     if (!EQUAL(st->settings, last)) {
         if (!saveSettings(&st->settings, "~/.testris.conf")) {
@@ -1092,6 +1085,10 @@ bool updateOptions(GameState *st, InputData in) {
 }
 
 void renderOptions(Renderer *r, GameState *st) {
+    // I'd rather do this in some helper function
+    st->options.topCenter = vec2(app->width/2, 200*scale());
+    st->options.scale = scaleOpts().scale;
+
     DrawOpts2d hotOpts = defaultHotOpts(st->elapsed);
     scale(&hotOpts.scale, scale());
     drawMenu(r, &st->options, hotOpts, scaleOpts());

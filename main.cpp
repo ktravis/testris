@@ -35,7 +35,6 @@ void resizeWindow(int w, int h) {
     app.height = h;
     r.screenWidth = (float)w;
     r.screenHeight = (float)h;
-    SDL_SetWindowSize(app.window.handle, r.screenWidth, r.screenHeight);
     renderToScreen(&r);
 }
     

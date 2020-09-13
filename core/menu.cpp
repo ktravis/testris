@@ -208,9 +208,9 @@ void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts, DrawOpts2d opts
         menuLineText(ctx, s, sizeof(s), ctx->lines[i]);
 
         // debug box
-        pos.y = ctx->topCenter.y + (i+0.25) * ctx->scale.y * ctx->font->lineHeight;
-        Rect dim = menuLineDimensions(ctx, ctx->lines[i], pos);
-        drawRectOutline(r, dim, red);
+        /* pos.y = ctx->topCenter.y + (i+0.25) * ctx->scale.y * ctx->font->lineHeight; */
+        /* Rect dim = menuLineDimensions(ctx, ctx->lines[i], pos); */
+        /* drawRectOutline(r, dim, red); */
 
         pos.y = ctx->topCenter.y + i * ctx->scale.y * ctx->font->lineHeight;
 
