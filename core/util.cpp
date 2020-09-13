@@ -65,6 +65,7 @@ bool writeFile(const char *filename, const uint8_t *b) {
     if (expanded) {
         filename = expanded;
     }
+
     FILE *f = fopen(filename, "wb");
     if (!f) {
         fprintf(stderr, (char*)"error writing to file %s: %s\n", filename, strerror(errno));
@@ -74,14 +75,14 @@ bool writeFile(const char *filename, const uint8_t *b) {
     fprintf(f, "%s", b);
     fclose(f);
     free(expanded);
-//#ifdef __EMSCRIPTEN__
-    //EM_ASM(
-        //FS.syncfs(function (err) {
-            //if (err !== null)
-                //console.error(err);
-        //});
-    //);
-//#endif
+#ifdef __EMSCRIPTEN__
+    EM_ASM(
+        FS.syncfs(true, function (err) {
+            if (err !== null)
+                console.error(err);
+        });
+    );
+#endif
     return true;
 }
 

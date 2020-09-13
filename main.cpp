@@ -52,20 +52,24 @@ bool step() {
     return result;
 }
 
+void step_forever() {
+    step();
+}
+
 int main(int argc, char *argv[]) {
 #ifdef __EMSCRIPTEN__
-    //EM_ASM(
-        //// Make a directory other than '/'
-        //FS.mkdir('/offline');
-        //// Then mount with IDBFS type
-        //FS.mount(IDBFS, {}, '/offline');
+    EM_ASM(
+        // Make a directory other than '/'
+        FS.mkdir('/offline');
+        // Then mount with IDBFS type
+        FS.mount(IDBFS, {}, '/offline');
 
-        //// Then sync
-        //FS.syncfs(true, function (err) {
-            //if (err !== null)
-                //console.error(err);
-        //});
-    //);
+        // Then sync
+        FS.syncfs(true, function (err) {
+            if (err !== null)
+                console.error(err);
+        });
+    );
 #endif
 
     if (!initApp(&app, INIT_DEFAULT)) {
@@ -94,7 +98,7 @@ int main(int argc, char *argv[]) {
 
 #ifdef __EMSCRIPTEN__
 #define REQUEST_ANIMATION_FRAME 0
-    emscripten_set_main_loop(step, REQUEST_ANIMATION_FRAME, 1);
+    emscripten_set_main_loop(step_forever, REQUEST_ANIMATION_FRAME, 1);
 #else
     // setup watched resources and watcher loop in thread
     Watcher watcher = {};

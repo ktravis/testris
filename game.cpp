@@ -15,6 +15,12 @@
 // - screen shake
 // - animated backgrounds
 
+#ifdef __EMSCRIPTEN__
+#define SETTINGS_FILE "/offline/testris.conf"
+#else
+#define SETTINGS_FILE "testris.conf"
+#endif
+
 uint8_t *ubuntu_ttf_buffer;
 FontAtlas ubuntu_m16;
 FontAtlas ubuntu_m32;
@@ -366,11 +372,12 @@ bool startGame(GameState *st, Renderer *r, App *a) {
     //sound_ready = loadAudioAndConvert("./assets/sounds/ready.wav");
     //if (sound_ready == -1) { return false; }
 
-    if (!loadSettings(&st->settings, "~/.testris.conf")) {
+    if (!loadSettings(&st->settings, SETTINGS_FILE)) {
         log("settings not found, saving defaults");
-        if (!saveSettings(&st->settings, "~/.testris.conf")) {
+        if (!saveSettings(&st->settings, SETTINGS_FILE)) {
             log("settings save failed");
         }
+        loadSettings(&st->settings, SETTINGS_FILE);
     }
 
     st->scenes[st->currentScene] = TITLE;
@@ -1108,7 +1115,7 @@ bool updateOptions(GameState *st, InputData in) {
         st->settings = s;
     }
     if (!EQUAL(st->settings, last)) {
-        if (!saveSettings(&st->settings, "~/.testris.conf")) {
+        if (!saveSettings(&st->settings, SETTINGS_FILE)) {
             log("settings save failed");
         }
     }
