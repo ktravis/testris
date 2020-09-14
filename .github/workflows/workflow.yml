@@ -1,0 +1,16 @@
+name: blog-post-create-issues
+on:
+  push:
+    branches: [ master ]
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    container:
+      image: emscripten/emsdk
+    steps:
+    - uses: actions/checkout@v2
+    - name: 
+      run: |
+        pwd
+        ls -la /
+        make wasm
