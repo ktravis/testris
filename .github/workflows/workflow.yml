@@ -9,6 +9,12 @@ jobs:
       image: emscripten/emsdk
     steps:
     - uses: actions/checkout@v2
-    - name: 
+    - name: build
+      run: make wasm
+    - name: update
       run: |
-        make wasm
+        git checkout pages
+        cp build/js/* ./
+        git add .
+        git commit -m "beep boop"
+        git push
