@@ -12,6 +12,9 @@
         background: black;
       }
 
+      a { color: white; }
+      a:hover { color: tomato; }
+      div.center { display: flex; justify-content: center }
       .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
       div.emscripten { text-align: center; }      
       /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
@@ -20,6 +23,7 @@
   </head>
   <body>
     <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+    <div class="center"><a href="https://github.com/ktravis/testris">view on github</a></a>
     <script type='text/javascript'>
       var Module = {
         preRun: [],
