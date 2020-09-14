@@ -17,5 +17,7 @@ jobs:
         git checkout origin/pages
         cp build/js/* ./
         git add .
+        git config user.name github-actions
+        git config user.email github-actions@github.com
         git commit -m "beep boop"
         git push
