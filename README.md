@@ -34,6 +34,16 @@ Known issues:
 
 ## requirements (native)
 
+C++ (11) compiler 
+
+### arch
+
+```shell
+pacman -Sy glew mesa sdl2
+```
+
+### debian
+
 ```shell
 apt install libsdl2-dev
 apt install libglew-dev
