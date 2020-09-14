@@ -49,6 +49,12 @@ apt install libsdl2-dev
 apt install libglew-dev
 ```
 
+### fedora
+
+```shell
+dnf install glew-devel SDL2-devel
+```
+
 ## build
 
 ```shell
