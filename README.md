@@ -1,20 +1,53 @@
 # testris
 tetris test
 
+I made a custom engine on SDL2 for mostly 2d rendering (though 3d is supported, it just doesn't have much work put into it yet). This is a test of a few different systems:
+
+- scenes
+- menus
+- text rendering
+- general mesh rendering
+- shader pipeline
+- very simple serde
+- sound effects (working, not currently in use)
+- sprite sheets/simple animation (working, not currently in use)
+
+
 TODO:
 - replay
 - export replay file
-- background
-- camera shake
 - high score file
 - add sound effects
 - timing fixes
 - scale difficulty
 - install requirements
 
-# requirements
+## uses
+
+- stb_image
+- stb_truetype
+
+## requirements (native)
 
 ```shell
 apt install libsdl2-dev
 apt install libglew-dev
+```
+
+## build
+
+```shell
+make
+build/main
+# or
+make run
+```
+
+## build for web
+
+depends on emscripten/emsdk
+
+```shell
+make wasm
+# output in build/js/
 ```

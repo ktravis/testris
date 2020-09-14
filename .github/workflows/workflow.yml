@@ -1,4 +1,4 @@
-name: blog-post-create-issues
+name: wasm-build
 on:
   push:
     branches: [ master ]
@@ -11,6 +11,4 @@ jobs:
     - uses: actions/checkout@v2
     - name: 
       run: |
-        pwd
-        ls -la /
         make wasm
