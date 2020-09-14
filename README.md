@@ -21,6 +21,11 @@ TODO:
 - timing fixes
 - scale difficulty
 - install requirements
+- make background scale redness with tower height
+
+Known issues:
+- web settings save does not work
+- web scale canvas with window size
 
 ## uses
 

@@ -13,6 +13,7 @@ jobs:
       run: make wasm
     - name: update
       run: |
+        git fetch
         git checkout origin/pages
         cp build/js/* ./
         git add .
