@@ -2,19 +2,6 @@
 
 #include "pieces.cpp"
 
-// TODO:
-// - spawn delay
-// - do scoring right
-// - score indicators
-// - score animation
-// - game over animation
-// - save the high score somewhere
-// - sounds
-// - music
-//
-// - screen shake
-// - animated backgrounds
-
 #ifdef __EMSCRIPTEN__
 #define SETTINGS_FILE "/offline/testris.conf"
 #else
@@ -835,6 +822,12 @@ bool updateTitle(GameState *st, InputData in) {
     } else if (btn == MainMenu_OptionsButton) {
         transition(st, Transition::CHECKER_IN_OUT, OPTIONS, 1500);
     } else if (btn == MainMenu_HighScoresButton) {
+        for (int i = 0; i < array_len(st->titleMenu.lines); i++) {
+            if (st->titleMenu.lines[i].btn == MainMenu_HighScoresButton) {
+                st->titleMenu.lines[i].label = (char*)"not implemented yet - sorry!";
+                break;
+            }
+        }
     } else if (btn == MainMenu_QuitButton) {
         return false;
     }
