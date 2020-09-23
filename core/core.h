@@ -154,6 +154,7 @@ struct InputData {
 
 KeyEvent keyEvent(InputData *in, int i);
 bool anyKeyPress(InputData *in);
+KeyState keyState(InputData *in, SDL_Keycode key);
 
 // matrix.cpp
 //

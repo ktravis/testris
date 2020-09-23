@@ -40,9 +40,48 @@ void resizeWindow(int w, int h) {
     
 GameState st = {};
 
+GameState savedState = {};
+int historyCursor = 0;
+int totalSaved = 0;
+InputData savedInputs[2048];
+const int historyCount =  sizeof(savedInputs)/sizeof(savedInputs[0]);
+bool recording = false;
+bool playback = false;
+
 bool step() {
     clear(&r, black);
     InputData in = step(&app);
+
+    if (recording) {
+        if (keyState(&in, SDLK_BACKSLASH).down) {
+            recording = false;
+            playback = true;
+            historyCursor = 0;
+        } else {
+            int next = (historyCursor++) % historyCount;
+            if (next > totalSaved) totalSaved = next;
+            savedInputs[next] = in;
+        }
+    } else if (playback) {
+        if (anyKeyPress(&in)) {
+            playback = false;
+        } else {
+            if ((historyCursor%totalSaved) == 0) {
+                st = savedState;
+            }
+            in = savedInputs[(historyCursor++) % totalSaved];
+        }
+    } else {
+        if (keyState(&in, SDLK_BACKSPACE).down) {
+            savedState = st;
+            historyCursor = 0;
+            totalSaved = 0;
+            recording = true;
+            playback = false;
+            log("save");
+        }
+    }
+
     bool result = updateGameState(&st, in);
 
     clear(&r, black);

@@ -19,8 +19,6 @@ int32_t sound_ready;
 ShaderProgram titleShader;
 ShaderProgram titleBGShader;
 
-Piece faller;
-
 static App *app = NULL;
 
 float scale() {
@@ -396,10 +394,10 @@ int firstFilledRow(int type, int o) {
 #define swap(a, b) { int _x = *a; *a = *b; *b = _x; }
 
 bool spawnFaller(GameState *st) {
-    faller.orientation = 0;
-    faller.type = st->queue[0];
-    faller.x = 3;
-    faller.y = -(firstFilledRow(faller.type, faller.orientation));
+    st->faller.orientation = 0;
+    st->faller.type = st->queue[0];
+    st->faller.x = 3;
+    st->faller.y = -(firstFilledRow(st->faller.type, st->faller.orientation));
     for (int i = 0; i < QUEUE_SIZE-1; i++)
         st->queue[i] = st->queue[i+1];
     st->queueRemaining--;
@@ -422,7 +420,7 @@ bool spawnFaller(GameState *st) {
             }
         }
     }
-    if (!pieceFits(st, &faller)) {
+    if (!pieceFits(st, &st->faller)) {
         return false;
     }
     return true;
@@ -667,19 +665,19 @@ void renderBoard(Renderer *r, GameState *st) {
 
     // faller
     for (int i = 0; i < PIECE_BLOCK_TOTAL; i++) {
-        if (!pieces[faller.type][faller.orientation][i]) {
+        if (!pieces[st->faller.type][st->faller.orientation][i]) {
             continue;
         }
         int x = i % 4;
         int y = i / 4;
-        if (!inBounds(faller.x+x, faller.y+y) || faller.y+y < 0) {
+        if (!inBounds(st->faller.x+x, st->faller.y+y) || st->faller.y+y < 0) {
             continue;
         }
         
-        Rect rx = rect(gridBlockPos(st, ul, faller.x+x, faller.y+y), blockSide(st), blockSide(st));
+        Rect rx = rect(gridBlockPos(st, ul, st->faller.x+x, st->faller.y+y), blockSide(st), blockSide(st));
         rx.pos.x -= blockSide(st)/2;
         rx.pos.y -= blockSide(st)/2;
-        drawRect(r, rx, colors[faller.type]);
+        drawRect(r, rx, colors[st->faller.type]);
     }
 
     if (st->stored != -1) {
@@ -710,7 +708,7 @@ void renderBoard(Renderer *r, GameState *st) {
 }
 
 void renderGhost(Renderer *r, GameState *st) {
-    Piece cp = faller; 
+    Piece cp = st->faller;
     //Color c = multiply(colors[cp.type], 1.70);
     Color c = colors[cp.type];
     while (tryMove(st, &cp, 0, 1));
@@ -911,12 +909,12 @@ bool updateInRound(GameState *st, InputData in) {
             if (st->paused) continue;
 
             if (e.key == st->settings.controls.rotateCCW) {
-                tryRotate(st, &faller, CCW);
+                tryRotate(st, &st->faller, CCW);
             } else if (e.key == st->settings.controls.rotateCW) {
-                tryRotate(st, &faller, CW);
+                tryRotate(st, &st->faller, CW);
             } else if (e.key == st->settings.controls.store) {
                 if (st->canStore) {
-                    int t = faller.type;
+                    int t = st->faller.type;
                     if (st->stored == -1) {
                         st->stored = t;
                         if (!spawnFaller(st)) {
@@ -925,17 +923,17 @@ bool updateInRound(GameState *st, InputData in) {
                         }
                     } else {
                         // TODO: make this "resetPiece" or something
-                        faller.orientation = 0;
-                        faller.type = st->stored;
-                        faller.x = 3;
-                        faller.y = -(firstFilledRow(faller.type, faller.orientation));
+                        st->faller.orientation = 0;
+                        st->faller.type = st->stored;
+                        st->faller.x = 3;
+                        st->faller.y = -(firstFilledRow(st->faller.type, st->faller.orientation));
                         st->stored = t;
                     }
                     st->canStore = false;
                 }
             } else if (e.key == st->settings.controls.drop) {
-                while (tryMove(st, &faller, 0, 1));
-                placePiece(st, &faller);
+                while (tryMove(st, &st->faller, 0, 1));
+                placePiece(st, &st->faller);
                 if (!spawnFaller(st)) {
                     gameOver(st);
                     return true;
@@ -963,14 +961,14 @@ bool updateInRound(GameState *st, InputData in) {
     // TODO: tweak accel
     if (st->moveDelayMillis <= 0.0f) {
         if (st->held.down) {
-            tryMove(st, &faller, 0, 1);
+            tryMove(st, &st->faller, 0, 1);
             st->dropAccel += st->dropAccel + 5;
             st->moveDelayMillis = maxMoveDelayMillis;
         } else if (st->held.left) {
-            tryMove(st, &faller, -1, 0);
+            tryMove(st, &st->faller, -1, 0);
             st->moveDelayMillis = maxMoveDelayMillis;
         } else if (st->held.right) {
-            tryMove(st, &faller, 1, 0);
+            tryMove(st, &st->faller, 1, 0);
             st->moveDelayMillis = maxMoveDelayMillis;
         }
     }
@@ -995,8 +993,8 @@ bool updateInRound(GameState *st, InputData in) {
     }
     if (st->droptick > tick) {
         st->droptick = 0;
-        if (!tryMove(st, &faller, 0, 1)) {
-            placePiece(st, &faller);
+        if (!tryMove(st, &st->faller, 0, 1)) {
+            placePiece(st, &st->faller);
             spawnFaller(st);
         }
     }

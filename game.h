@@ -136,6 +136,7 @@ struct GameState {
     int queueRemaining;
     Block blocks[MAX_BLOCKS];
     int lastBlockInUse;
+    Piece faller;
 
     // scene specific:
 

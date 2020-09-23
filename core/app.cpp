@@ -148,6 +148,14 @@ bool anyKeyPress(InputData *in) {
     return false;
 }
 
+KeyState keyState(InputData *in, SDL_Keycode key) {
+    for (int i = 0; i < in->numKeyEvents; i++) {
+        KeyEvent *e = &in->keys[(in->keyEventBufferOffset + i) % KEY_EVENT_BUFCOUNT];
+        if (e->key == key) return e->state;
+    }
+    return (KeyState){};
+}
+
 KeyEvent keyEvent(InputData *in, int i) {
     return in->keys[(in->keyEventBufferOffset + i) % KEY_EVENT_BUFCOUNT];
 }
