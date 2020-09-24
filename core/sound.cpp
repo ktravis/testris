@@ -11,8 +11,8 @@ static Sound loaded_sounds[MAX_LOADED_SOUNDS];
 #define MAX_PLAYING_SOUNDS 16
 static Playing playing_sounds[MAX_PLAYING_SOUNDS];
 
-SoundProps globalSoundProps = {.volume = 1.0f};
-SoundProps defaultSoundProps = {.volume = 1.0f};
+SoundProps globalSoundProps = {.volume = 0.4f};
+SoundProps defaultSoundProps = {.volume = 0.4f};
 
 void stopAllSounds() {
     for (int i = 0; i < MAX_PLAYING_SOUNDS; i++) {
