@@ -37,48 +37,40 @@ void resizeWindow(int w, int h) {
     r.screenHeight = (float)h;
     renderToScreen(&r);
 }
+
+#define SANDS_OF_TIME 2048
+#define REWIND_SIZE 80
     
 GameState st = {};
 
-GameState savedState = {};
-int historyCursor = 0;
-int totalSaved = 0;
-InputData savedInputs[2048];
-const int historyCount =  sizeof(savedInputs)/sizeof(savedInputs[0]);
-bool recording = false;
-bool playback = false;
+int pos = 0;
+int stop = 0;
+int32_t whooop;
+GameState savedStates[SANDS_OF_TIME];
+InputData savedInputs[SANDS_OF_TIME];
+bool rewinding = false;
 
 bool step() {
     clear(&r, black);
     InputData in = step(&app);
 
-    if (recording) {
-        if (keyState(&in, SDLK_BACKSLASH).down) {
-            recording = false;
-            playback = true;
-            historyCursor = 0;
-        } else {
-            int next = (historyCursor++) % historyCount;
-            if (next > totalSaved) totalSaved = next;
-            savedInputs[next] = in;
-        }
-    } else if (playback) {
-        if (anyKeyPress(&in)) {
-            playback = false;
-        } else {
-            if ((historyCursor%totalSaved) == 0) {
-                st = savedState;
+    if (st.roundInProgress) {
+        if (rewinding) {
+            pos--;
+            if (pos == stop) {
+                rewinding = false;
             }
-            in = savedInputs[(historyCursor++) % totalSaved];
-        }
-    } else {
-        if (keyState(&in, SDLK_BACKSPACE).down) {
-            savedState = st;
-            historyCursor = 0;
-            totalSaved = 0;
-            recording = true;
-            playback = false;
-            log("save");
+            st = savedStates[pos % SANDS_OF_TIME];
+            in = savedInputs[pos % SANDS_OF_TIME];
+        } else {
+            savedInputs[pos % SANDS_OF_TIME] = in;
+            savedStates[pos % SANDS_OF_TIME] = st;
+            pos++;
+            if (keyState(&in, SDLK_BACKSPACE).down) {
+                rewinding = true;
+                playSound(whooop);
+                stop = (pos - REWIND_SIZE) % SANDS_OF_TIME;
+            }
         }
     }
 
@@ -127,6 +119,12 @@ int main(int argc, char *argv[]) {
     }
 
     renderToScreen(&r);
+
+    whooop = loadAudioAndConvert("./assets/sounds/whooop.wav");
+    if (whooop == -1) {
+        log("loading audio failed");
+        return -1;
+    }
 
     if (!startGame(&st, &r, &app)) {
         log("start game failed, exiting");
