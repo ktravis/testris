@@ -36,6 +36,14 @@ struct Transition {
     void (*fn)(GameState *) = NULL;
 };
 
+struct FlashMessage {
+    bool active;
+    char text[255];
+    Vec2 pos;
+    float lifetime;
+    float totalLifetime = 2.0f;
+};
+
 struct Block {
     int x;
     int y;
@@ -83,7 +91,10 @@ struct Settings {
         SDL_Keycode rotateCW = SDLK_x;
         SDL_Keycode rotateCCW = SDLK_z;
         SDL_Keycode pause = SDLK_p;
+        SDL_Keycode reset = SDLK_r;
         SDL_Keycode mute = SDLK_m;
+        SDL_Keycode save = SDLK_LEFTBRACKET;
+        SDL_Keycode restore = SDLK_RIGHTBRACKET;
     } controls;
     bool muted = false;
     bool showGhost = true;
@@ -100,6 +111,7 @@ bool saveSettings(Settings *s, const char *file);
 bool compileExtraShaders(Renderer *r);
 
 #define NUM_PIECES 7
+#define FLASH_MESSAGE_COUNT 32
 
 #define QUEUE_SIZE (2*2*NUM_PIECES)
 #define MAX_BLOCKS (2*BOARD_HEIGHT*BOARD_WIDTH)
@@ -151,6 +163,8 @@ struct GameState {
     float moveDelayMillis = 0;
     float dropAccel = 0;
     float shaking;
+
+    FlashMessage messages[FLASH_MESSAGE_COUNT];
 
     // OPTIONS
     MenuContext options;

@@ -242,8 +242,12 @@ void initOptionsMenu(GameState *st) {
     addMenuLine(menu, (char *)"store", &st->settings.controls.store);
     addMenuLine(menu, (char *)"rotate cw", &st->settings.controls.rotateCW);
     addMenuLine(menu, (char *)"rotate ccw", &st->settings.controls.rotateCCW);
+    addMenuLine(menu, (char *)"");
     addMenuLine(menu, (char *)"pause", &st->settings.controls.pause);
     addMenuLine(menu, (char *)"mute", &st->settings.controls.mute);
+    addMenuLine(menu, (char *)"quick reset", &st->settings.controls.reset);
+    addMenuLine(menu, (char *)"save", &st->settings.controls.save);
+    addMenuLine(menu, (char *)"restore", &st->settings.controls.restore);
 
     addMenuLine(menu, (char *)"");
     addMenuLine(menu, (char *)"");
@@ -276,7 +280,10 @@ DEFINE_SERDE(Settings,
     KEY_FIELD(rotateCW),
     KEY_FIELD(rotateCCW),
     KEY_FIELD(pause),
+    KEY_FIELD(reset),
     KEY_FIELD(mute),
+    KEY_FIELD(save),
+    KEY_FIELD(restore),
     BOOL_FIELD(muted),
     BOOL_FIELD(showGhost),
     BOOL_FIELD(screenShake)
@@ -599,6 +606,29 @@ void placePiece(GameState *st, Piece *p) {
     st->canStore = true;
 }
 
+FlashMessage *freeMessageSlot(GameState *st) {
+    for (int i = 0; i < FLASH_MESSAGE_COUNT; i++) {
+        FlashMessage *msg = &st->messages[i];
+        if (msg->active) continue;
+        return msg;
+    }
+    return &st->messages[0];
+}
+
+FlashMessage *flashMessage(GameState *st, const char *text, Vec2 pos) {
+    FlashMessage *msg = freeMessageSlot(st);
+    msg->active = true;
+    strncpy(msg->text, text, sizeof(msg->text));
+    msg->totalLifetime = 2000.0f;
+    msg->lifetime = msg->totalLifetime;
+    msg->pos = pos;
+    return msg;
+}
+
+FlashMessage *flashMessage(GameState *st, const char *text) {
+    return flashMessage(st, text, vec2(0, 0));
+}
+
 // old == false, new == true
 bool updateTransition(Transition *t, InputData in) {
     t->t += in.dt;
@@ -897,10 +927,6 @@ bool updateInRound(GameState *st, InputData in) {
                 st->paused = !st->paused;
             } else {
                 switch (e.key) {
-                case SDLK_r:
-                    // TODO: only if gameOver
-                    transitionStartRound(st);
-                    return true;
                 case SDLK_ESCAPE:
                     pushScene(st, OPTIONS);
                     return true;
@@ -944,6 +970,22 @@ bool updateInRound(GameState *st, InputData in) {
                 st->held.left = true;
             } else if (e.key == st->settings.controls.right) {
                 st->held.right = true;
+            } else if (e.key == st->settings.controls.reset) {
+                transitionStartRound(st);
+                return true;
+            } else if (e.key == st->settings.controls.save) {
+                // save state
+                if (!writeFileBinary("snapshot.testris", (uint8_t*)st, sizeof(*st)))
+                    log("failed to save snapshot");
+                flashMessage(st, "state saved");
+            } else if (e.key == st->settings.controls.restore) {
+                // load state
+                uint8_t *b = readFile("snapshot.testris");
+                if (b) {
+                    *st = *(GameState*)(b);
+                    flashMessage(st, "state restored");
+                    free(b);
+                }
             }
         } else if (e.state.up) {
             if (e.key == st->settings.controls.down) {
@@ -1018,6 +1060,12 @@ bool updateInRound(GameState *st, InputData in) {
             }
         }
     }
+
+    for (int i = 0; i < FLASH_MESSAGE_COUNT; i++) {
+        FlashMessage *m = &st->messages[i];
+        if (!m->active) continue;
+        m->active = (m->lifetime -= in.dt) > 0;
+    }
     return true;
 }
 
@@ -1061,6 +1109,20 @@ void renderInRound(Renderer *r, GameState *st) {
     renderBoard(r, st);
     renderScore(r, st);
     renderQueue(r, st);
+
+    Vec2 messageBase = vec2(app->width/2, app->height*0.7);
+    Vec2 diff = vec2(0, -scale()*ubuntu_m32.lineHeight*2.0f);
+    for (int i = 0; i < FLASH_MESSAGE_COUNT; i++) {
+        FlashMessage *m = &st->messages[i];
+        if (!m->active) continue;
+        Vec2 pos = m->pos;
+        if (pos.x == 0 && pos.y == 0)
+            pos = add(messageBase, scaled(diff, i));
+        DrawOpts2d opts = {};
+        opts.tint.a = 3*m->lifetime / m->totalLifetime;
+        opts.tint.a *= opts.tint.a;
+        drawTextCentered(r, &ubuntu_m32, pos.x, pos.y, m->text, opts);
+    }
 }
 
 bool updateGameOver(GameState *st, InputData in) {

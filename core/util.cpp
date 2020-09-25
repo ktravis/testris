@@ -60,6 +60,32 @@ uint8_t *readFile(const char *filename) {
     return buf;
 }
 
+bool writeFileBinary(const char *filename, const uint8_t *b, const uint32_t n) {
+    char *expanded = expandPath(filename);
+    if (expanded) {
+        filename = expanded;
+    }
+
+    FILE *f = fopen(filename, "wb");
+    if (!f) {
+        fprintf(stderr, (char*)"error writing to file %s: %s\n", filename, strerror(errno));
+        free(expanded);
+        return false;
+    }
+    fwrite(b, sizeof(uint8_t), n, f);
+    fclose(f);
+    free(expanded);
+#ifdef __EMSCRIPTEN__
+    EM_ASM(
+        FS.syncfs(true, function (err) {
+            if (err !== null)
+                console.error(err);
+        });
+    );
+#endif
+    return true;
+}
+
 bool writeFile(const char *filename, const uint8_t *b) {
     char *expanded = expandPath(filename);
     if (expanded) {

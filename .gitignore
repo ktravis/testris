@@ -41,3 +41,4 @@ build/main
 *.plist
 
 testris.conf
+*.testris

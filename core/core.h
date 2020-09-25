@@ -209,7 +209,10 @@ long diffMilli(struct timespec *start, struct timespec *end);
 uint64_t fileSize(FILE *f);
 char *expandPath(const char *path);
 uint8_t *readFile(const char *filename);
+
+// zero-terminated
 bool writeFile(const char *filename, const uint8_t *b);
+bool writeFileBinary(const char *filename, const uint8_t *b, const uint32_t n);
 bool loadTextureFile(const char *fname, GLuint *tex);
 uint8_t *eatLine(uint8_t **s);
 void eatSpaces(uint8_t **s);
