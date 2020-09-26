@@ -9,6 +9,9 @@ jobs:
       image: emscripten/emsdk
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - run: git log
     - name: cache emsdk deps
       uses: actions/cache@v2
       with:
