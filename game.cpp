@@ -15,6 +15,7 @@ uint8_t *mono_ttf_buffer;
 FontAtlas mono_m18;
 
 int32_t sound_ready;
+int32_t whooop;
 
 ShaderProgram titleShader;
 ShaderProgram titleBGShader;
@@ -244,6 +245,7 @@ void initOptionsMenu(GameState *st) {
     addMenuLine(menu, (char *)"rotate ccw", &st->settings.controls.rotateCCW);
     addMenuLine(menu, (char *)"");
     addMenuLine(menu, (char *)"pause", &st->settings.controls.pause);
+    addMenuLine(menu, (char *)"rewind", &st->settings.controls.rewind);
     addMenuLine(menu, (char *)"mute", &st->settings.controls.mute);
     addMenuLine(menu, (char *)"quick reset", &st->settings.controls.reset);
     addMenuLine(menu, (char *)"save", &st->settings.controls.save);
@@ -280,6 +282,7 @@ DEFINE_SERDE(Settings,
     KEY_FIELD(rotateCW),
     KEY_FIELD(rotateCCW),
     KEY_FIELD(pause),
+    KEY_FIELD(rewind),
     KEY_FIELD(reset),
     KEY_FIELD(mute),
     KEY_FIELD(save),
@@ -376,6 +379,9 @@ bool startGame(GameState *st, Renderer *r, App *a) {
 
     //int32_t sound_hiscore = loadAudioAndConvert("assets/sounds/hiscore.wav");
     //if (sound_hiscore == -1) { return NULL; }
+    whooop = loadAudioAndConvert("./assets/sounds/whooop.wav");
+    if (whooop == -1) return false;
+
     
     initTitleMenu(st);
     initOptionsMenu(st);
@@ -918,7 +924,36 @@ bool onscreen(GameState *st, Block *b) {
     return contains(rect(-blockSide(st), -blockSide(st), app->width+blockSide(st), app->height+blockSide(st)), b->pos);
 }
 
+#define SANDS_OF_TIME 1024
+
+int rwPos = 0;
+int savedSize = 0;
+GameState savedStates[SANDS_OF_TIME];
+InputData savedInputs[SANDS_OF_TIME];
+bool rewinding = false;
+
 bool updateInRound(GameState *st, InputData in) {
+    if (rewinding) {
+        savedSize--;
+        if (keyState(&in, st->settings.controls.rewind).up || savedSize == 0) {
+            rewinding = false;
+            for (int i = 0; i < sizeof(st->held); i++)
+                ((char*)(&st->held))[i] = 0;
+        } else {
+            *st = savedStates[(rwPos + savedSize) % SANDS_OF_TIME];
+            /* in = savedInputs[(rwPos + savedSize)  % SANDS_OF_TIME]; */
+        }
+    } else {
+        savedInputs[(rwPos + savedSize) % SANDS_OF_TIME] = in;
+        savedStates[(rwPos + savedSize) % SANDS_OF_TIME] = *st;
+        if (savedSize < SANDS_OF_TIME) savedSize++;
+        else rwPos = (rwPos+1) % SANDS_OF_TIME;
+        if (keyState(&in, st->settings.controls.rewind).down) {
+            rewinding = true;
+            /* playSound(whooop); */
+        }
+    }
+
     for (int i = 0; i < in.numKeyEvents; i++) {
         KeyEvent e = keyEvent(&in, i);
         if (e.state.down) {
@@ -995,6 +1030,8 @@ bool updateInRound(GameState *st, InputData in) {
                 st->held.left = false;
             } else if (e.key == st->settings.controls.right) {
                 st->held.right = false;
+            } else if (e.key == st->settings.controls.rewind) {
+                rewinding = false;
             }
         }
     }
@@ -1107,6 +1144,16 @@ void renderInRound(Renderer *r, GameState *st) {
     drawRectOutline(r, border(st), white, 2.0f);
     if (st->settings.showGhost)
         renderGhost(r, st);
+    if (savedSize < SANDS_OF_TIME || rewinding) {
+        drawRectOutline(r, rect(
+            vec2(0.25*app->width, app->height - scale()*42),
+            0.5*app->width, scale()*16
+        ), white, scale()*3.0f);
+        drawRect(r, rect(
+            vec2(0.25*app->width, app->height - scale()*40),
+            (float(savedSize)/SANDS_OF_TIME)*(0.5*app->width), scale()*12
+        ), white);
+    }
     renderBoard(r, st);
     renderScore(r, st);
     renderQueue(r, st);

@@ -91,6 +91,7 @@ struct Settings {
         SDL_Keycode rotateCW = SDLK_x;
         SDL_Keycode rotateCCW = SDLK_z;
         SDL_Keycode pause = SDLK_p;
+        SDL_Keycode rewind = SDLK_BACKSPACE;
         SDL_Keycode reset = SDLK_r;
         SDL_Keycode mute = SDLK_m;
         SDL_Keycode save = SDLK_LEFTBRACKET;

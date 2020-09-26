@@ -38,41 +38,11 @@ void resizeWindow(int w, int h) {
     renderToScreen(&r);
 }
 
-#define SANDS_OF_TIME 2048
-#define REWIND_SIZE 80
-    
 GameState st = {};
-
-int pos = 0;
-int stop = 0;
-int32_t whooop;
-GameState savedStates[SANDS_OF_TIME];
-InputData savedInputs[SANDS_OF_TIME];
-bool rewinding = false;
 
 bool step() {
     clear(&r, black);
     InputData in = step(&app);
-
-    if (st.roundInProgress) {
-        if (rewinding) {
-            pos--;
-            if (pos == stop) {
-                rewinding = false;
-            }
-            st = savedStates[pos % SANDS_OF_TIME];
-            in = savedInputs[pos % SANDS_OF_TIME];
-        } else {
-            savedInputs[pos % SANDS_OF_TIME] = in;
-            savedStates[pos % SANDS_OF_TIME] = st;
-            pos++;
-            if (keyState(&in, SDLK_BACKSPACE).down) {
-                rewinding = true;
-                playSound(whooop);
-                stop = (pos - REWIND_SIZE) % SANDS_OF_TIME;
-            }
-        }
-    }
 
     bool result = updateGameState(&st, in);
 
@@ -119,12 +89,6 @@ int main(int argc, char *argv[]) {
     }
 
     renderToScreen(&r);
-
-    whooop = loadAudioAndConvert("./assets/sounds/whooop.wav");
-    if (whooop == -1) {
-        log("loading audio failed");
-        return -1;
-    }
 
     if (!startGame(&st, &r, &app)) {
         log("start game failed, exiting");
