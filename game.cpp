@@ -224,6 +224,9 @@ void initTitleMenu(GameState *st) {
 }
 
 DEFINE_BUTTON(OptionsMenu_ResumeButton);
+DEFINE_BUTTON(OptionsMenu_ControlsButton);
+DEFINE_BUTTON(OptionsMenu_SettingsButton);
+DEFINE_BUTTON(OptionsMenu_BackButton);
 DEFINE_BUTTON(OptionsMenu_QuitButton);
 DEFINE_BUTTON(OptionsMenu_ResetDefaults);
 
@@ -236,7 +239,21 @@ void initOptionsMenu(GameState *st) {
     menu->lines = 0;
     menu->alignWidth = 24;
     menu->topCenter = vec2(app->width/2, 200*scale());
-    addMenuLine(menu, (char *)"[ keys ]");
+    addMenuLine(menu, (char *)"[ options ]");
+    addMenuLine(menu, (char *)"resume", OptionsMenu_ResumeButton);
+    addMenuLine(menu, (char *)"controls", OptionsMenu_ControlsButton);
+    addMenuLine(menu, (char *)"settings", OptionsMenu_SettingsButton);
+    addMenuLine(menu, (char *)"reset defaults", OptionsMenu_ResetDefaults);
+    addMenuLine(menu, (char *)"quit", OptionsMenu_QuitButton);
+
+    menu->hotIndex = 1;
+
+    menu = &st->controlsMenu;
+    menu->font = &mono_m18;
+    menu->lines = 0;
+    menu->alignWidth = 24;
+    menu->topCenter = vec2(app->width/2, 200*scale());
+    addMenuLine(menu, (char *)"[ controls ]");
     addMenuLine(menu, (char *)"left", &st->settings.controls.left);
     addMenuLine(menu, (char *)"right", &st->settings.controls.right);
     addMenuLine(menu, (char *)"down", &st->settings.controls.down);
@@ -251,23 +268,25 @@ void initOptionsMenu(GameState *st) {
     addMenuLine(menu, (char *)"quick reset", &st->settings.controls.reset);
     addMenuLine(menu, (char *)"save", &st->settings.controls.save);
     addMenuLine(menu, (char *)"restore", &st->settings.controls.restore);
-
     addMenuLine(menu, (char *)"");
-    addMenuLine(menu, (char *)"");
+    addMenuLine(menu, (char *)"back", OptionsMenu_BackButton);
 
+    menu->hotIndex = 1;
+
+    menu = &st->settingsMenu;
+    menu->font = &mono_m18;
+    menu->lines = 0;
+    menu->alignWidth = 24;
+    menu->topCenter = vec2(app->width/2, 200*scale());
     addMenuLine(menu, (char *)"[ settings ]");
     addMenuLine(menu, (char *)"muted", &st->settings.muted);
     addMenuLine(menu, (char *)"ghost", &st->settings.showGhost);
     addMenuLine(menu, (char *)"screen shake", &st->settings.screenShake);
-
     addMenuLine(menu, (char *)"");
-    addMenuLine(menu, (char *)"");
-
-    addMenuLine(menu, (char *)"resume", OptionsMenu_ResumeButton);
-    addMenuLine(menu, (char *)"quit", OptionsMenu_QuitButton);
     addMenuLine(menu, (char *)"scale up", OptionsMenu_ScaleUpButton);
     addMenuLine(menu, (char *)"scale down", OptionsMenu_ScaleDownButton);
-    addMenuLine(menu, (char *)"reset defaults", OptionsMenu_ResetDefaults);
+    addMenuLine(menu, (char *)"");
+    addMenuLine(menu, (char *)"back", OptionsMenu_BackButton);
 
     menu->hotIndex = 1;
 }
@@ -1224,7 +1243,8 @@ bool updateGameOver(GameState *st, InputData in) {
 }
 
 bool updateOptions(GameState *st, InputData in) {
-    if (st->options.interaction != KEYBINDING) {
+    if (!st->currentMenu) st->currentMenu = &st->options;
+    if (st->currentMenu->interaction != KEYBINDING) {
         for (int i = 0; i < in.numKeyEvents; i++) {
             KeyEvent e = keyEvent(&in, i);
             if (!e.state.down)
@@ -1240,7 +1260,7 @@ bool updateOptions(GameState *st, InputData in) {
     }
 
     Settings last = st->settings;
-    MenuButton *btn = updateMenu(&st->options, in);
+    MenuButton *btn = updateMenu(st->currentMenu, in);
     if (btn == OptionsMenu_ScaleUpButton) {
         float s = (roundf(floorf(scale() * 4.0f+0.5f) + 1) / 4.0f);
         SDL_SetWindowSize(app->window.handle, 600.0f*s, 800.0f*s);
@@ -1260,6 +1280,12 @@ bool updateOptions(GameState *st, InputData in) {
         if (!st->roundInProgress) transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
         else popScene(st);
         return true;
+    } else if (btn == OptionsMenu_ControlsButton) {
+        st->currentMenu = &st->controlsMenu;
+    } else if (btn == OptionsMenu_SettingsButton) {
+        st->currentMenu = &st->settingsMenu;
+    } else if (btn == OptionsMenu_BackButton) {
+        st->currentMenu = &st->options;
     } else if (btn == OptionsMenu_QuitButton) {
         return false;
     }
@@ -1267,16 +1293,24 @@ bool updateOptions(GameState *st, InputData in) {
 }
 
 void renderOptions(Renderer *r, GameState *st) {
+    if (!st->currentMenu) st->currentMenu = &st->options;
+    VertexData vbuf[6*256];
+    Mesh meshBuffer;
+    meshBuffer.data = vbuf;
+    meshBuffer.count = sizeof(vbuf)/sizeof(VertexData);
+
     // I'd rather do this in some helper function
     st->options.topCenter = vec2(app->width/2, 200*scale());
     st->options.scale = scaleOpts().scale;
 
+    DrawOpts2d opts = scaleOpts();
+    opts.meshBuffer = meshBuffer;
     DrawOpts2d hotOpts = defaultHotOpts(st->elapsed);
+    hotOpts.meshBuffer = meshBuffer;
     scale(&hotOpts.scale, scale());
-    drawMenu(r, &st->options, hotOpts, scaleOpts());
+    drawMenu(r, st->currentMenu, hotOpts, opts);
 
     // draw help text
-    DrawOpts2d opts = scaleOpts();
     opts.tint.r = opts.tint.g = opts.tint.b = 0.65;
     drawTextCentered(r, st->options.font, app->width/2, app->height - 2.0f*scale()*st->options.font->lineHeight, "arrow keys + enter / mouse + click", opts);
 }

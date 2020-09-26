@@ -168,7 +168,10 @@ struct GameState {
     FlashMessage messages[FLASH_MESSAGE_COUNT];
 
     // OPTIONS
+    MenuContext *currentMenu = NULL;
     MenuContext options;
+    MenuContext controlsMenu;
+    MenuContext settingsMenu;
 };
 
 bool startGame(GameState *, Renderer *, App *);
