@@ -1018,6 +1018,8 @@ bool updateInRound(GameState *st, InputData in) {
         }
     }
 
+    Piece oldFaller = st->faller;
+
     for (int i = 0; i < in.numKeyEvents; i++) {
         KeyEvent e = keyEvent(&in, i);
         if (e.state.down) {
@@ -1028,6 +1030,7 @@ bool updateInRound(GameState *st, InputData in) {
             } else {
                 switch (e.key) {
                 case SDLK_ESCAPE:
+                    st->currentMenu = 0;
                     pushScene(st, OPTIONS);
                     return true;
                 }
@@ -1133,6 +1136,16 @@ bool updateInRound(GameState *st, InputData in) {
     float tick = tickInterval - st->score*20;
     if (tick < 200) {
         tick = 200;
+    }
+
+    // if the faller moved or rotated...
+    if (st->faller.x != oldFaller.x || st->faller.y != oldFaller.y || st->faller.orientation != oldFaller.orientation) {
+        // ...and it is "resting"...
+        Piece f = st->faller;
+        if (!tryMove(st, &f, 0, 1)) {
+            // ...reset droptick
+            st->droptick = tick/2;
+        }
     }
     if (st->droptick > tick) {
         st->droptick = 0;
@@ -1274,8 +1287,7 @@ bool updateGameOver(GameState *st, InputData in) {
 }
 
 bool updateOptions(GameState *st, InputData in) {
-    if (!st->currentMenu) st->currentMenu = &st->options;
-    if (st->currentMenu->interaction != KEYBINDING) {
+    if (st->menus[st->currentMenu].interaction != KEYBINDING) {
         for (int i = 0; i < in.numKeyEvents; i++) {
             KeyEvent e = keyEvent(&in, i);
             if (!e.state.down)
@@ -1291,7 +1303,7 @@ bool updateOptions(GameState *st, InputData in) {
     }
 
     Settings last = st->settings;
-    MenuButton *btn = updateMenu(st->currentMenu, in);
+    MenuButton *btn = updateMenu(&st->menus[st->currentMenu], in);
     if (btn == OptionsMenu_ScaleUpButton) {
         float s = (roundf(floorf(scale() * 4.0f+0.5f) + 1) / 4.0f);
         SDL_SetWindowSize(app->window.handle, 600.0f*s, 800.0f*s);
@@ -1311,12 +1323,12 @@ bool updateOptions(GameState *st, InputData in) {
         if (!st->roundInProgress) transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
         else popScene(st);
         return true;
-    } else if (btn == OptionsMenu_ControlsButton) {
-        st->currentMenu = &st->controlsMenu;
-    } else if (btn == OptionsMenu_SettingsButton) {
-        st->currentMenu = &st->settingsMenu;
     } else if (btn == OptionsMenu_BackButton) {
-        st->currentMenu = &st->options;
+        st->currentMenu = 0;
+    } else if (btn == OptionsMenu_ControlsButton) {
+        st->currentMenu = 1;
+    } else if (btn == OptionsMenu_SettingsButton) {
+        st->currentMenu = 2;
     } else if (btn == OptionsMenu_QuitButton) {
         return false;
     }
@@ -1324,7 +1336,6 @@ bool updateOptions(GameState *st, InputData in) {
 }
 
 void renderOptions(Renderer *r, GameState *st) {
-    if (!st->currentMenu) st->currentMenu = &st->options;
     VertexData vbuf[6*256];
     Mesh meshBuffer;
     meshBuffer.data = vbuf;
@@ -1339,7 +1350,7 @@ void renderOptions(Renderer *r, GameState *st) {
     DrawOpts2d hotOpts = defaultHotOpts(st->elapsed);
     hotOpts.meshBuffer = meshBuffer;
     scale(&hotOpts.scale, scale());
-    drawMenu(r, st->currentMenu, hotOpts, opts);
+    drawMenu(r, &st->menus[st->currentMenu], hotOpts, opts);
 
     // draw help text
     opts.tint.r = opts.tint.g = opts.tint.b = 0.65;

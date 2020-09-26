@@ -170,7 +170,8 @@ struct GameState {
     FlashMessage messages[FLASH_MESSAGE_COUNT];
 
     // OPTIONS
-    MenuContext *currentMenu = NULL;
+    int currentMenu = 0;
+    MenuContext menus[0];
     MenuContext options;
     MenuContext controlsMenu;
     MenuContext settingsMenu;
