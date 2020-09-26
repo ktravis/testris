@@ -29,8 +29,10 @@ Known issues:
 
 ## uses
 
-- stb_image
-- stb_truetype
+- [stb_image](https//github.com/nothings/stb)
+- [stb_truetype](https//github.com/nothings/stb)
+- shader based on https://www.shadertoy.com/view/Ms3XWH
+- DejaVuSansMono and Ubuntu fonts
 
 ## requirements (native)
 

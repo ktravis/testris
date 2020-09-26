@@ -19,6 +19,7 @@ int32_t whooop;
 
 ShaderProgram titleShader;
 ShaderProgram titleBGShader;
+ShaderProgram vhsShader;;
 
 static App *app = NULL;
 
@@ -342,6 +343,20 @@ bool compileExtraShaders(Renderer *r) {
     }
 
     if (!compileShaderProgram(&titleBGShader)) {
+        return false;
+    }
+
+    shaderBuf = readFile("assets/shaders/vhs.fs");
+    if (!shaderBuf) {
+        return false;
+    }
+
+    vhsShader.vert = r->defaultShader.vert;
+    if (!compileShader(&vhsShader.frag, shaderBuf, GL_FRAGMENT_SHADER)) {
+        return false;
+    }
+
+    if (!compileShaderProgram(&vhsShader)) {
         return false;
     }
     return true;
@@ -934,7 +949,8 @@ bool rewinding = false;
 
 bool updateInRound(GameState *st, InputData in) {
     if (rewinding) {
-        savedSize--;
+        savedSize -= 2;
+        if (savedSize < 0) savedSize = 0;
         if (keyState(&in, st->settings.controls.rewind).up || savedSize == 0) {
             rewinding = false;
             for (int i = 0; i < sizeof(st->held); i++)
@@ -1122,12 +1138,19 @@ void renderBackground(Renderer *r, GameState *st) {
     for (int i = 0; i < n; i++) {
         opts.scale = vec2(scale()*7*((float)i)/n, scale()*7*((float)i)/n);
         opts.rotation = M_PI/2 + st->elapsed/(i*20.0f);
-        Vec2 center = vec2(r->screenWidth/2+scale()*60.0f/i*cosf(st->elapsed/2200.0f), r->screenHeight/2+scale()*60.0f/i*sinf(st->elapsed/2200.0f));
+        Vec2 center = vec2(app->width/2+scale()*60.0f/i*cosf(st->elapsed/2200.0f), app->height/2+scale()*60.0f/i*sinf(st->elapsed/2200.0f));
         drawMesh(r, &m, center, r->defaultTexture, opts);
     }
 }
 
 void renderInRound(Renderer *r, GameState *st) {
+    static RenderTarget rt = {};
+    if (app->width != rt.w || app->height != rt.h) {
+        createRenderTarget(&rt, app->width, app->height);
+    }
+    renderToTexture(r, &rt);
+    clear(r);
+
     if (st->shaking > 0 && st->settings.screenShake) {
         r->offset = vec2(powf(st->shaking/750.0f,2)*randn(scale()*10), powf(st->shaking/750.0f,2)*randn(scale()*10));
     } else {
@@ -1171,6 +1194,19 @@ void renderInRound(Renderer *r, GameState *st) {
         opts.tint.a *= opts.tint.a;
         drawTextCentered(r, &ubuntu_m32, pos.x, pos.y, m->text, opts);
     }
+
+    renderToScreen(r);
+
+    DrawOpts2d opts = {};
+    if (rewinding) {
+        useShader(r, &vhsShader);
+        glUniform1f(r->currentShader->uniforms.timeLoc, st->elapsed);
+        glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
+        opts.shader = &vhsShader;
+    }
+    drawTexturedQuad(r, vec2(), app->width, app->height, rt.tex, rect(0, 1, 1, 0), opts);
+
+    useShader(r, &r->defaultShader);
 }
 
 bool updateGameOver(GameState *st, InputData in) {
