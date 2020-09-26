@@ -37,7 +37,7 @@ $(BUILDDIR)/js/testris.js: assets/ $(SRC) $(HEADERS)
 
 $(BUILDDIR)/js/index.html: assets/index.html
 	@mkdir -p $(shell dirname $@)
-	cp $< $@
+	awk -v c="$$(git log -n 5 --date=short --format="%ad %h %s")" '{ sub("%CHANGES_GO_HERE%", c); print }' $< > $@
 
 clean:
 	rm -f $(OBJS) $(BIN) compile_flags.txt

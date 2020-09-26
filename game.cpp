@@ -618,7 +618,8 @@ FlashMessage *freeMessageSlot(GameState *st) {
 FlashMessage *flashMessage(GameState *st, const char *text, Vec2 pos) {
     FlashMessage *msg = freeMessageSlot(st);
     msg->active = true;
-    strncpy(msg->text, text, sizeof(msg->text));
+    int i = 0;
+    while ((msg->text[i] = text[i]) && ++i < sizeof(msg->text));
     msg->totalLifetime = 2000.0f;
     msg->lifetime = msg->totalLifetime;
     msg->pos = pos;

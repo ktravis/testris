@@ -19,11 +19,13 @@
       div.emscripten { text-align: center; }      
       /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
       canvas.emscripten { border: 0px none; background-color: black; }
+      #changes { color: dimgrey; }
     </style>
   </head>
   <body>
     <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
-    <div class="center"><a href="https://github.com/ktravis/testris">view on github</a></a>
+    <div class="center"><a href="https://github.com/ktravis/testris">view on github</a></div>
+    <div class="center"><pre id="changes">%CHANGES_GO_HERE%</pre></div>
     <script type='text/javascript'>
       var Module = {
         preRun: [],
