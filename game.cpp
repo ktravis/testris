@@ -313,8 +313,24 @@ DEFINE_SERDE(Settings,
 )
 
 bool loadSettings(Settings *s, const char *filename) {
-    uint8_t *buf;
-    if (!(buf = readFile(filename))) {
+    uint8_t *buf = NULL;
+#ifdef __EMSCRIPTEN__
+    buf = (uint8_t*)EM_ASM_INT({
+        try {
+          var jsString = localStorage.getItem("settings");
+          var lengthBytes = jsString.length+1;
+          var stringOnWasmHeap = _malloc(lengthBytes);
+          stringToAscii(jsString, stringOnWasmHeap, lengthBytes);
+          return stringOnWasmHeap;
+       } catch (e) {
+          console.error(e);
+          return null;
+       }
+    });
+#else
+    buf = readFile(filename);
+#endif
+    if (!buf) {
         return false;
     }
     deserializeSettings(s, buf);
@@ -323,8 +339,16 @@ bool loadSettings(Settings *s, const char *filename) {
 }
 
 bool saveSettings(Settings *s, const char *filename) {
+    bool result;
     uint8_t *buf = serializeSettings(s);
-    bool result = writeFile(filename, buf);
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        localStorage.setItem("settings", AsciiToString($0));
+    }, buf);
+    result = true;
+#else
+    result = writeFile(filename, buf);
+#endif
     free(buf);
     return result;
 }
