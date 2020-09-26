@@ -18,6 +18,12 @@ MenuLine *addMenuLine(MenuContext *ctx, char *label, bool *b) {
     return l;
 }
 
+MenuLine *addMenuLine(MenuContext *ctx, char *label, uint32_t *i) {
+    MenuLine *l = addMenuLine(ctx, INT_VALUE, label);
+    l->i = i;
+    return l;
+}
+
 MenuLine *addMenuLine(MenuContext *ctx, char *label, SDL_Keycode *key) {
     MenuLine *l = addMenuLine(ctx, KEYBINDING_VALUE, label);
     l->key.waiting = false;
@@ -31,7 +37,7 @@ MenuLine *addMenuLine(MenuContext *ctx, char *label, MenuButton *btn) {
     return l;
 }
 
-void menuLineText(MenuContext *ctx, char *buf, int n, MenuLine item) {
+void menuLineText(MenuContext *ctx, char *buf, int n, MenuLine item, bool hot) {
     int alignWidth = ctx->alignWidth;
     const char *pad = "................................................";
     switch (item.type) {
@@ -50,6 +56,16 @@ void menuLineText(MenuContext *ctx, char *buf, int n, MenuLine item) {
         }
         snprintf(buf, n, "%s: %.*s%s", item.label, p, pad, v);
     } break;
+    case INT_VALUE:
+    {
+        int p = 0;
+        const char *f = hot ? "< %s: %u >" : "%s: %u";
+        int w = snprintf(NULL, 0, f, item.label, *item.i);
+        if (alignWidth != -1 && w < alignWidth) {
+            p = alignWidth - w;
+        }
+        snprintf(buf, n, hot ? "< %s: %.*s%u >" : "%s: %.*s%u", item.label, p, pad, *item.i);
+    } break;
     case KEYBINDING_VALUE:
     {
         char *v = (char*)(item.key.waiting ? "press a key" : SDL_GetKeyName(*item.key.current));
@@ -65,12 +81,12 @@ void menuLineText(MenuContext *ctx, char *buf, int n, MenuLine item) {
     }
 }
 
-Rect menuLineDimensions(MenuContext *ctx, MenuLine item, Vec2 pos) {
+Rect menuLineDimensions(MenuContext *ctx, MenuLine item, Vec2 pos, bool hot) {
     Rect r;
     r.x = 0;
     r.y = 0;
     char s[255];
-    menuLineText(ctx, s, sizeof(s), item);
+    menuLineText(ctx, s, sizeof(s), item, hot);
     r.box = getTextDimensions(s, ctx->font);
     scale(&r.box, ctx->scale);
     r.pos = pos;
@@ -121,6 +137,8 @@ MenuButton *menuInteract(MenuContext *ctx, MenuLine *item) {
         case TOGGLE_VALUE:
             *item->toggle = !*item->toggle;
             break;
+        case INT_VALUE:
+            break;
         case KEYBINDING_VALUE:
             ctx->interaction = KEYBINDING;
             item->key.waiting = true;
@@ -151,7 +169,7 @@ MenuButton *updateMenu(MenuContext *ctx, InputData in) {
             if (item->type == HEADING) {
                 continue;
             }
-            Rect dim = menuLineDimensions(ctx, *item, pos);
+            Rect dim = menuLineDimensions(ctx, *item, pos, false);
             if (contains(dim, in.mouse)) {
                 ctx->hotIndex = i;
                 break;
@@ -184,6 +202,17 @@ MenuButton *updateMenu(MenuContext *ctx, InputData in) {
         default: break;
         }
 
+        if (item->type == INT_VALUE) {
+            switch (e.key) {
+            case SDLK_LEFT:
+                *item->i = ((uint32_t)(*item->i) - 1) % UINT32_MAX;
+                break;
+            case SDLK_RIGHT:
+                *item->i = ((uint32_t)(*item->i) + 1) % UINT32_MAX;
+                break;
+            }
+        }
+
         switch (e.key) {
         case SDLK_UP:
             prevHotLine(ctx);
@@ -205,7 +234,7 @@ void drawMenu(Renderer *r, MenuContext *ctx, DrawOpts2d hotOpts, DrawOpts2d opts
         bool hot = (i == (ctx->hotIndex % n));
 
         char s[255];
-        menuLineText(ctx, s, sizeof(s), ctx->lines[i]);
+        menuLineText(ctx, s, sizeof(s), ctx->lines[i], hot);
 
         // debug box
         /* pos.y = ctx->topCenter.y + (i+0.25) * ctx->scale.y * ctx->font->lineHeight; */

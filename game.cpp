@@ -276,12 +276,14 @@ void initOptionsMenu(GameState *st) {
     menu = &st->settingsMenu;
     menu->font = &mono_m18;
     menu->lines = 0;
-    menu->alignWidth = 24;
+    menu->alignWidth = 30;
     menu->topCenter = vec2(app->width/2, 200*scale());
     addMenuLine(menu, (char *)"[ settings ]");
     addMenuLine(menu, (char *)"muted", &st->settings.muted);
     addMenuLine(menu, (char *)"ghost", &st->settings.showGhost);
     addMenuLine(menu, (char *)"screen shake", &st->settings.screenShake);
+    addMenuLine(menu, (char *)"move delay (ms)", &st->settings.moveDelayMillis);
+    addMenuLine(menu, (char *)"move start delay (ms)", &st->settings.moveStartDelayMillis);
     addMenuLine(menu, (char *)"");
     addMenuLine(menu, (char *)"scale up", OptionsMenu_ScaleUpButton);
     addMenuLine(menu, (char *)"scale down", OptionsMenu_ScaleDownButton);
@@ -309,7 +311,9 @@ DEFINE_SERDE(Settings,
     KEY_FIELD(restore),
     BOOL_FIELD(muted),
     BOOL_FIELD(showGhost),
-    BOOL_FIELD(screenShake)
+    BOOL_FIELD(screenShake),
+    INT_FIELD(moveDelayMillis),
+    INT_FIELD(moveStartDelayMillis)
 )
 
 bool loadSettings(Settings *s, const char *filename) {
@@ -569,7 +573,7 @@ void startRound(GameState *st) {
         }
     }
 
-    spawnFaller(st);
+    assert(spawnFaller(st));
 }
 
 void transitionStartRound(GameState *st) {
@@ -970,9 +974,10 @@ void renderTitle(Renderer *r, GameState *st) {
     drawMenu(r, &st->titleMenu, hotOpts, scaleOpts());
 }
 
-float moveRate = 12.0f;
-float maxMoveDelayMillis = 1000.0f/moveRate; 
-float moveStartDelayMillis = 225.0f;
+/* float moveRate = 12.0f; */
+/* float maxMoveDelayMillis = 1000.0f/moveRate; */ 
+/* int maxMoveDelayMillis = 64; */ 
+/* int moveStartDelayMillis = 100; */
 
 void gameOver(GameState *st) {
     transition(st, Transition::ROWS_ACROSS, GAME_OVER, 1500);
@@ -1097,24 +1102,23 @@ bool updateInRound(GameState *st, InputData in) {
 
     if (st->paused) return true;
 
-    // TODO: tweak accel
     if (st->moveDelayMillis <= 0.0f) {
         if (st->held.down) {
             tryMove(st, &st->faller, 0, 1);
             st->dropAccel += st->dropAccel + 5;
-            st->moveDelayMillis = maxMoveDelayMillis;
+            st->moveDelayMillis = st->settings.moveDelayMillis;
         } else if (st->held.left) {
             tryMove(st, &st->faller, -1, 0);
-            st->moveDelayMillis = maxMoveDelayMillis;
+            st->moveDelayMillis = st->settings.moveDelayMillis;
         } else if (st->held.right) {
             tryMove(st, &st->faller, 1, 0);
-            st->moveDelayMillis = maxMoveDelayMillis;
+            st->moveDelayMillis = st->settings.moveDelayMillis;
         }
     }
     if (st->held.left || st->held.right || st->held.down) {
         st->moveDelayMillis -= in.dt;
         if (!st->moving) {
-            st->moveDelayMillis = moveStartDelayMillis;
+            st->moveDelayMillis = st->settings.moveStartDelayMillis;
         }
         st->moving = true;
     } else {
@@ -1134,7 +1138,10 @@ bool updateInRound(GameState *st, InputData in) {
         st->droptick = 0;
         if (!tryMove(st, &st->faller, 0, 1)) {
             placePiece(st, &st->faller);
-            spawnFaller(st);
+            if (!spawnFaller(st)) {
+                gameOver(st);
+                return true;
+            }
         }
     }
     Vec2 ul = border(st).pos;

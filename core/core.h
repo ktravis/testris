@@ -259,6 +259,7 @@ bool _deserializeFields(uint8_t *buf, int n, SerDeField *fields);
 #define FIELD(name, fmt) FIELD_FN(name, (fmt), NULL, NULL)
 
 #define BOOL_FIELD(name) FIELD_FN(name, "%s", boolToString, boolFromString)
+#define INT_FIELD(name) FIELD(name, "%u")
 #define FLOAT_FIELD(name) FIELD(name, "%g")
 
 #define DECLARE_SERIALIZER(obj) \
@@ -609,6 +610,7 @@ enum InteractionType {
 enum MenuItemType {
     HEADING,
     TOGGLE_VALUE,
+    INT_VALUE,
     KEYBINDING_VALUE,
     BUTTON,
 };
@@ -626,6 +628,7 @@ struct MenuLine {
 
     union {
         bool *toggle;
+        uint32_t *i;
         struct {
             bool waiting;
             SDL_Keycode *current;
@@ -656,11 +659,12 @@ struct MenuContext {
 MenuLine *addMenuLine(MenuContext *ctx, MenuItemType t, char *label);
 MenuLine *addMenuLine(MenuContext *ctx, char *label);
 MenuLine *addMenuLine(MenuContext *ctx, char *label, bool *b);
+MenuLine *addMenuLine(MenuContext *ctx, char *label, uint32_t *i);
 MenuLine *addMenuLine(MenuContext *ctx, char *label, SDL_Keycode *key);
 MenuLine *addMenuLine(MenuContext *ctx, char *label, MenuButton *btn);
 
-void menuLineText(MenuContext *ctx, char *buf, int n, MenuLine item);
-Rect menuLineDimensions(MenuContext *ctx, MenuLine item, Vec2 pos);
+void menuLineText(MenuContext *ctx, char *buf, int n, MenuLine item, bool hot = false);
+Rect menuLineDimensions(MenuContext *ctx, MenuLine item, Vec2 pos, bool hot);
 int prevHotLine(MenuContext *ctx);
 int nextHotLine(MenuContext *ctx);
 MenuButton *menuInteract(MenuContext *ctx, MenuLine *item);

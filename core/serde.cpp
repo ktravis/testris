@@ -53,12 +53,14 @@ bool _deserializeFields(uint8_t *buf, int n, SerDeField *fields) {
                 if (!strcmp(fmt, "%s")) {
                     fmt = "%[^\n]";
                 }
-                sscanf((char*)value, fmt, valbuf);
-                void *v = valbuf;
                 if (fields[i].deser_fn) {
+                    sscanf((char*)value, fmt, valbuf);
+                    void *v = valbuf;
                     v = fields[i].deser_fn(v);
+                    memcpy(fields[i].address, &v, fields[i].size);
+                } else {
+                    sscanf((char*)value, fmt, fields[i].address);
                 }
-                memcpy(fields[i].address, &v, fields[i].size);
                 break;
             }
         }

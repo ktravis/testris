@@ -101,6 +101,8 @@ struct Settings {
     bool showGhost = true;
     bool screenShake = true;
     float renderScale = 1.0f;
+    uint32_t moveDelayMillis = 64;
+    uint32_t moveStartDelayMillis = 100;
 };
 
 DECLARE_SERDE(Settings);
