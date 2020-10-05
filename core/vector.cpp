@@ -64,7 +64,7 @@ float dot(Vec2 a, Vec2 b) {
 }
 
 void normalize(Vec2 *a) {
-    float d = dsqr(*a);
+    float d = sqrtf(dsqr(*a));
     if (d == 0) {
         return;
     }

@@ -202,7 +202,7 @@ MenuButton *updateMenu(MenuContext *ctx, InputData in) {
         default: break;
         }
 
-        if (item->type == INT_VALUE) {
+        if (item && item->type == INT_VALUE) {
             switch (e.key) {
             case SDLK_LEFT:
                 *item->i = ((uint32_t)(*item->i) - 1) % UINT32_MAX;

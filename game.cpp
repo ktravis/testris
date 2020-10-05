@@ -69,7 +69,7 @@ bool pieceFits(GameState *st, int type, int o, int x, int y, Vec2 *nudge) {
         int i = ix + iy * 4;
         if (y + iy < 0) continue;
         if (!pieces[type][o][i]) continue;
-        if (st->board[y+iy][x+ix].full) {
+        if (st->inRound.board[y+iy][x+ix].full) {
             return false;
         }
         if (!inBounds(x+ix, y+iy)) {
@@ -87,7 +87,7 @@ bool pieceFits(GameState *st, int type, int o, int x, int y, Vec2 *nudge) {
         int i = ix + iy * 4;
         if (y + iy < 0) continue;
         if (!pieces[type][o][i]) continue;
-        if (st->board[y+iy][x+ix].full) {
+        if (st->inRound.board[y+iy][x+ix].full) {
             return false;
         }
         if (!inBounds(x+ix, y+iy)) {
@@ -107,7 +107,7 @@ bool pieceFits(GameState *st, int type, int o, int x, int y, Vec2 *nudge) {
             int i = ix + iy * 4;
 
             if (!pieces[type][o][i]) continue;
-            if (st->board[y+iy][x+ix].full) {
+            if (st->inRound.board[y+iy][x+ix].full) {
                 return false;
             }
             if (!inBounds(x+ix, y+iy)) {
@@ -469,14 +469,14 @@ int firstFilledRow(int type, int o) {
 #define swap(a, b) { int _x = *a; *a = *b; *b = _x; }
 
 bool spawnFaller(GameState *st) {
-    st->faller.orientation = 0;
-    st->faller.type = st->queue[0];
-    st->faller.x = 3;
-    st->faller.y = -(firstFilledRow(st->faller.type, st->faller.orientation));
+    st->inRound.faller.orientation = 0;
+    st->inRound.faller.type = st->inRound.queue[0];
+    st->inRound.faller.x = 3;
+    st->inRound.faller.y = -(firstFilledRow(st->inRound.faller.type, st->inRound.faller.orientation));
     for (int i = 0; i < QUEUE_SIZE-1; i++)
-        st->queue[i] = st->queue[i+1];
-    st->queueRemaining--;
-    if (st->queueRemaining <= 2*NUM_PIECES) {
+        st->inRound.queue[i] = st->inRound.queue[i+1];
+    st->inRound.queueRemaining--;
+    if (st->inRound.queueRemaining <= 2*NUM_PIECES) {
         int base[NUM_PIECES];
         int n = NUM_PIECES;
         for (int i = 0; i < n; i++) {
@@ -491,11 +491,11 @@ bool spawnFaller(GameState *st) {
             } 
             // copy in
             for (int i = 0; i < n; i++) {
-                st->queue[st->queueRemaining++] = base[i];
+                st->inRound.queue[st->inRound.queueRemaining++] = base[i];
             }
         }
     }
-    if (!pieceFits(st, &st->faller)) {
+    if (!pieceFits(st, &st->inRound.faller)) {
         return false;
     }
     return true;
@@ -542,18 +542,18 @@ Rect border(GameState *st) {
 }
 
 void startRound(GameState *st) {
-    st->score = 0;
-    st->stored = -1;
-    st->canStore = true;
-    st->roundInProgress = true;
+    st->inRound.score = 0;
+    st->inRound.stored = -1;
+    st->inRound.canStore = true;
+    st->inRound.roundInProgress = true;
 
 
     for (int y = 0; y < BOARD_HEIGHT; y++)
         for (int x = 0; x < BOARD_WIDTH; x++)
-            st->board[y][x] = (Cell){.full = false};
+            st->inRound.board[y][x] = (Cell){.full = false};
 
     for (int i = 0; i < MAX_BLOCKS; i++)
-        st->blocks[i].inUse = false;
+        st->inRound.blocks[i].inUse = false;
 
     int base[NUM_PIECES];
     int n = NUM_PIECES;
@@ -569,7 +569,7 @@ void startRound(GameState *st) {
         } 
         // copy in
         for (int i = 0; i < n; i++) {
-            st->queue[st->queueRemaining++] = base[i];
+            st->inRound.queue[st->inRound.queueRemaining++] = base[i];
         }
     }
 
@@ -592,13 +592,13 @@ Vec2 gridBlockPos(GameState *st, Vec2 ul, int x, int y) {
 
 void tryClearingLine(GameState *st, int line) {
     Vec2 ul = border(st).pos;
-    Cell *row = st->board[line];
+    Cell *row = st->inRound.board[line];
     for (int x = 0; x < BOARD_WIDTH; x++) {
         if (!row[x].full) {
             debug("U WUT");
         }
         row[x].full = false;
-        Block *b = &st->blocks[row[x].blockIndex];
+        Block *b = &st->inRound.blocks[row[x].blockIndex];
 
         // fly off board
         b->onBoard = false;
@@ -608,12 +608,12 @@ void tryClearingLine(GameState *st, int line) {
         b->vel.y = randf(-7.5f) - 0.5f;
 
         for (int y = line-1; y >= 0; y--) {
-            st->board[y+1][x] = st->board[y][x];
-            if (!st->board[y][x].full) continue;
-            st->blocks[st->board[y+1][x].blockIndex].y = y + 1;
-            st->blocks[st->board[y+1][x].blockIndex].tweenStep = 0;
+            st->inRound.board[y+1][x] = st->inRound.board[y][x];
+            if (!st->inRound.board[y][x].full) continue;
+            st->inRound.blocks[st->inRound.board[y+1][x].blockIndex].y = y + 1;
+            st->inRound.blocks[st->inRound.board[y+1][x].blockIndex].tweenStep = 0;
         }
-        st->board[0][x].full = false;
+        st->inRound.board[0][x].full = false;
     }
 }
 
@@ -621,7 +621,7 @@ void clearLines(GameState *st) {
     for (int y = 0; y < BOARD_HEIGHT; y++) {
         bool all = true;
         for (int x = 0; x < BOARD_WIDTH; x++) {
-            if (!st->board[y][x].full) {
+            if (!st->inRound.board[y][x].full) {
                 all = false;
                 break;
             }
@@ -630,10 +630,10 @@ void clearLines(GameState *st) {
             continue;
         }
         tryClearingLine(st, y);
-        st->score++;
-        st->shaking += st->shaking > 1 ? 250.0f : 600.0f;
-        if (st->score > st->hiscore) {
-            st->hiscore = st->score;
+        st->inRound.score++;
+        st->inRound.shaking += st->inRound.shaking > 1 ? 250.0f : 600.0f;
+        if (st->inRound.score > st->hiscore) {
+            st->hiscore = st->inRound.score;
         }
     }
 }
@@ -641,13 +641,13 @@ void clearLines(GameState *st) {
 int placeBlock(GameState *st, Block b) {
     int idx;
     for (int i = 0; i < MAX_BLOCKS; i++) {
-        idx = (i + st->lastBlockInUse) % MAX_BLOCKS;
-        if (!st->blocks[idx].inUse)
+        idx = (i + st->inRound.lastBlockInUse) % MAX_BLOCKS;
+        if (!st->inRound.blocks[idx].inUse)
             break;
         // fall through if we run out
     }
-    st->blocks[idx] = b;
-    st->lastBlockInUse = idx;
+    st->inRound.blocks[idx] = b;
+    st->inRound.lastBlockInUse = idx;
     return idx;
 }
 
@@ -665,22 +665,22 @@ void placePiece(GameState *st, Piece *p) {
         b.y = y;
         b.targetPos = gridBlockPos(st, ul, x, y);
         b.pos = b.targetPos;
-        st->board[y][x].full = true;
-        st->board[y][x].blockIndex = placeBlock(st, b);
+        st->inRound.board[y][x].full = true;
+        st->inRound.board[y][x].blockIndex = placeBlock(st, b);
         //int idx = placeBlock(st, b);
-        //st->board[y][x].block = &st->blocks[idx];
+        //st->board[y][x].block = &st->inRound.blocks[idx];
     }
     clearLines(st);
-    st->canStore = true;
+    st->inRound.canStore = true;
 }
 
 FlashMessage *freeMessageSlot(GameState *st) {
     for (int i = 0; i < FLASH_MESSAGE_COUNT; i++) {
-        FlashMessage *msg = &st->messages[i];
+        FlashMessage *msg = &st->inRound.messages[i];
         if (msg->active) continue;
         return msg;
     }
-    return &st->messages[0];
+    return &st->inRound.messages[0];
 }
 
 FlashMessage *flashMessage(GameState *st, const char *text, Vec2 pos) {
@@ -727,7 +727,7 @@ bool updateGameState(GameState *st, InputData in) {
         acc = 0;
         st->fps = 1000.0f/in.dt;
     }
-    st->elapsed += in.dt;
+    st->inRound.elapsed += in.dt;
 
     if (in.quit) {
         return false;
@@ -752,8 +752,8 @@ bool updateGameState(GameState *st, InputData in) {
 void renderBoard(Renderer *r, GameState *st) {
     Vec2 ul = border(st).pos;
     for (int i = 0; i < MAX_BLOCKS; i++) {
-        if (!st->blocks[i].inUse) continue;
-        Block *b = &st->blocks[i];
+        if (!st->inRound.blocks[i].inUse) continue;
+        Block *b = &st->inRound.blocks[i];
         DrawOpts2d opts;
         Rect rx = rect(b->pos, blockSide(st), blockSide(st));
         opts.origin = scaled(rx.box, 0.5);
@@ -764,22 +764,22 @@ void renderBoard(Renderer *r, GameState *st) {
 
     // faller
     for (int i = 0; i < PIECE_BLOCK_TOTAL; i++) {
-        if (!pieces[st->faller.type][st->faller.orientation][i]) {
+        if (!pieces[st->inRound.faller.type][st->inRound.faller.orientation][i]) {
             continue;
         }
         int x = i % 4;
         int y = i / 4;
-        if (!inBounds(st->faller.x+x, st->faller.y+y) || st->faller.y+y < 0) {
+        if (!inBounds(st->inRound.faller.x+x, st->inRound.faller.y+y) || st->inRound.faller.y+y < 0) {
             continue;
         }
         
-        Rect rx = rect(gridBlockPos(st, ul, st->faller.x+x, st->faller.y+y), blockSide(st), blockSide(st));
+        Rect rx = rect(gridBlockPos(st, ul, st->inRound.faller.x+x, st->inRound.faller.y+y), blockSide(st), blockSide(st));
         rx.pos.x -= blockSide(st)/2;
         rx.pos.y -= blockSide(st)/2;
-        drawRect(r, rx, colors[st->faller.type]);
+        drawRect(r, rx, colors[st->inRound.faller.type]);
     }
 
-    if (st->stored != -1) {
+    if (st->inRound.stored != -1) {
         bool anyInRow = false;
 
         float side = blockSide(st) * 0.7f;
@@ -792,7 +792,7 @@ void renderBoard(Renderer *r, GameState *st) {
             if (x == 0 && anyInRow) {
                 y++;
             }
-            if (!pieces[st->stored][0][i]) {
+            if (!pieces[st->inRound.stored][0][i]) {
                 continue;
             }
             anyInRow = true;
@@ -801,13 +801,13 @@ void renderBoard(Renderer *r, GameState *st) {
                 (x * (side + pad) + v.x),
                 (y * (side + pad) + v.y)
             );
-            drawRect(r, rect(p, box), colors[st->stored]);
+            drawRect(r, rect(p, box), colors[st->inRound.stored]);
         }
     }
 }
 
 void renderGhost(Renderer *r, GameState *st) {
-    Piece cp = st->faller;
+    Piece cp = st->inRound.faller;
     //Color c = multiply(colors[cp.type], 1.70);
     Color c = colors[cp.type];
     while (tryMove(st, &cp, 0, 1));
@@ -842,7 +842,7 @@ void renderScore(Renderer *r, GameState *st) {
     float h = scale()*ubuntu_m32.lineHeight;
     // TODO(ktravis): right-align text?
     float left = ul.x - scale()*92.0f;
-    drawTextf(r, &ubuntu_m32, left, ul.y + scale()*1.75f*h, opts, (const char*)"score:\n%04d", st->score, opts);
+    drawTextf(r, &ubuntu_m32, left, ul.y + scale()*1.75f*h, opts, (const char*)"score:\n%04d", st->inRound.score, opts);
 
     drawText(r, &ubuntu_m32, left, ul.y + border(st).h - scale()*(h+5.0f), "hi:", opts);
     char buf[5];
@@ -863,7 +863,7 @@ void renderQueue(Renderer *r, GameState *st) {
     for (int q = 0; q < VISIBLE_QUEUE_BLOCKS; q++) {
         bool anyInRow = false;
         for (int i = 0; i < PIECE_BLOCK_TOTAL; i++) {
-            int t = st->queue[q];
+            int t = st->inRound.queue[q];
             int x = i % 4;
             if (x == 0 && anyInRow) {
                 y++;
@@ -968,7 +968,7 @@ void renderTitle(Renderer *r, GameState *st) {
     st->titleMenu.topCenter = vec2(app->width/2, app->height/2 + 140*scale());
     st->titleMenu.scale = scaleOpts().scale;
 
-    DrawOpts2d hotOpts = defaultHotOpts(st->elapsed);
+    DrawOpts2d hotOpts = defaultHotOpts(st->inRound.elapsed);
     scale(&hotOpts.scale, scale());
 
     drawMenu(r, &st->titleMenu, hotOpts, scaleOpts());
@@ -987,46 +987,36 @@ bool onscreen(GameState *st, Block *b) {
     return contains(rect(-blockSide(st), -blockSide(st), app->width+blockSide(st), app->height+blockSide(st)), b->pos);
 }
 
-#define SANDS_OF_TIME 1024
-
-int rwPos = 0;
-int savedSize = 0;
-GameState savedStates[SANDS_OF_TIME];
-InputData savedInputs[SANDS_OF_TIME];
-bool rewinding = false;
-
 bool updateInRound(GameState *st, InputData in) {
-    if (rewinding) {
-        savedSize -= 2;
-        if (savedSize < 0) savedSize = 0;
-        if (keyState(&in, st->settings.controls.rewind).up || savedSize == 0) {
-            rewinding = false;
-            for (int i = 0; i < sizeof(st->held); i++)
-                ((char*)(&st->held))[i] = 0;
+    if (st->rw.rewinding) {
+        st->rw.size -= st->rw.rwFactor;
+        if (st->rw.size < 0) st->rw.size = 0;
+        if (keyState(&in, st->settings.controls.rewind).up || st->rw.size == 0) {
+            st->rw.rewinding = false;
+            for (int i = 0; i < sizeof(st->inRound.held); i++)
+                ((char*)(&st->inRound.held))[i] = 0;
         } else {
-            *st = savedStates[(rwPos + savedSize) % SANDS_OF_TIME];
-            /* in = savedInputs[(rwPos + savedSize)  % SANDS_OF_TIME]; */
+            st->inRound = st->rw.savedStates[(st->rw.cursor + st->rw.size) % SANDS_OF_TIME];
+            /* in = savedInputs[(st->rw.cursor + size)  % SANDS_OF_TIME]; */
         }
     } else {
-        savedInputs[(rwPos + savedSize) % SANDS_OF_TIME] = in;
-        savedStates[(rwPos + savedSize) % SANDS_OF_TIME] = *st;
-        if (savedSize < SANDS_OF_TIME) savedSize++;
-        else rwPos = (rwPos+1) % SANDS_OF_TIME;
+        /* savedInputs[(st->rw.cursor + size) % SANDS_OF_TIME] = in; */
+        st->rw.savedStates[(st->rw.cursor + st->rw.size) % SANDS_OF_TIME] = st->inRound;
+        if (st->rw.size < SANDS_OF_TIME) st->rw.size++;
+        else st->rw.cursor = (st->rw.cursor+1) % SANDS_OF_TIME;
         if (keyState(&in, st->settings.controls.rewind).down) {
-            rewinding = true;
+            st->rw.rewinding = true;
             /* playSound(whooop); */
         }
     }
 
-    Piece oldFaller = st->faller;
+    Piece oldFaller = st->inRound.faller;
 
     for (int i = 0; i < in.numKeyEvents; i++) {
         KeyEvent e = keyEvent(&in, i);
         if (e.state.down) {
             if (e.key == st->settings.controls.mute) {
                 toggleMute();
-            } else if (e.key == st->settings.controls.pause) {
-                st->paused = !st->paused;
             } else {
                 switch (e.key) {
                 case SDLK_ESCAPE:
@@ -1035,122 +1025,120 @@ bool updateInRound(GameState *st, InputData in) {
                     return true;
                 }
             }
-            if (st->paused) continue;
 
             if (e.key == st->settings.controls.rotateCCW) {
-                tryRotate(st, &st->faller, CCW);
+                tryRotate(st, &st->inRound.faller, CCW);
             } else if (e.key == st->settings.controls.rotateCW) {
-                tryRotate(st, &st->faller, CW);
+                tryRotate(st, &st->inRound.faller, CW);
             } else if (e.key == st->settings.controls.store) {
-                if (st->canStore) {
-                    int t = st->faller.type;
-                    if (st->stored == -1) {
-                        st->stored = t;
+                if (st->inRound.canStore) {
+                    int t = st->inRound.faller.type;
+                    if (st->inRound.stored == -1) {
+                        st->inRound.stored = t;
                         if (!spawnFaller(st)) {
                             gameOver(st);
                             return true;
                         }
                     } else {
                         // TODO: make this "resetPiece" or something
-                        st->faller.orientation = 0;
-                        st->faller.type = st->stored;
-                        st->faller.x = 3;
-                        st->faller.y = -(firstFilledRow(st->faller.type, st->faller.orientation));
-                        st->stored = t;
+                        st->inRound.faller.orientation = 0;
+                        st->inRound.faller.type = st->inRound.stored;
+                        st->inRound.faller.x = 3;
+                        st->inRound.faller.y = -(firstFilledRow(st->inRound.faller.type, st->inRound.faller.orientation));
+                        st->inRound.stored = t;
                     }
-                    st->canStore = false;
+                    st->inRound.canStore = false;
                 }
             } else if (e.key == st->settings.controls.drop) {
-                while (tryMove(st, &st->faller, 0, 1));
-                placePiece(st, &st->faller);
+                while (tryMove(st, &st->inRound.faller, 0, 1));
+                placePiece(st, &st->inRound.faller);
                 if (!spawnFaller(st)) {
                     gameOver(st);
                     return true;
                 }
             } else if (e.key == st->settings.controls.down) {
-                st->held.down = true;
+                st->inRound.held.down = true;
             } else if (e.key == st->settings.controls.left) {
-                st->held.left = true;
+                st->inRound.held.left = true;
             } else if (e.key == st->settings.controls.right) {
-                st->held.right = true;
+                st->inRound.held.right = true;
             } else if (e.key == st->settings.controls.reset) {
                 transitionStartRound(st);
                 return true;
             } else if (e.key == st->settings.controls.save) {
                 // save state
-                if (!writeFileBinary("snapshot.testris", (uint8_t*)st, sizeof(*st)))
+                if (!writeFileBinary("snapshot.testris", (uint8_t*)&st->inRound, sizeof(st->inRound)+sizeof(st->rw)))
                     log("failed to save snapshot");
                 flashMessage(st, "state saved");
             } else if (e.key == st->settings.controls.restore) {
                 // load state
                 uint8_t *b = readFile("snapshot.testris");
                 if (b) {
-                    *st = *(GameState*)(b);
+                    st->inRound = *(InRoundState*)(b);
+                    st->rw = *(RewindBuffer*)(b+sizeof(InRoundState));
                     flashMessage(st, "state restored");
                     free(b);
                 }
             }
         } else if (e.state.up) {
             if (e.key == st->settings.controls.down) {
-                st->held.down = false;
+                st->inRound.held.down = false;
             } else if (e.key == st->settings.controls.left) {
-                st->held.left = false;
+                st->inRound.held.left = false;
             } else if (e.key == st->settings.controls.right) {
-                st->held.right = false;
+                st->inRound.held.right = false;
             } else if (e.key == st->settings.controls.rewind) {
-                rewinding = false;
+                st->rw.rewinding = false;
             }
         }
     }
 
-    if (st->paused) return true;
-
-    if (st->moveDelayMillis <= 0.0f) {
-        if (st->held.down) {
-            tryMove(st, &st->faller, 0, 1);
-            st->dropAccel += st->dropAccel + 5;
-            st->moveDelayMillis = st->settings.moveDelayMillis;
-        } else if (st->held.left) {
-            tryMove(st, &st->faller, -1, 0);
-            st->moveDelayMillis = st->settings.moveDelayMillis;
-        } else if (st->held.right) {
-            tryMove(st, &st->faller, 1, 0);
-            st->moveDelayMillis = st->settings.moveDelayMillis;
+    if (st->inRound.moveDelayMillis <= 0.0f) {
+        if (st->inRound.held.down) {
+            tryMove(st, &st->inRound.faller, 0, 1);
+            st->inRound.dropAccel += st->inRound.dropAccel + 5;
+            st->inRound.moveDelayMillis = st->settings.moveDelayMillis;
+        } else if (st->inRound.held.left) {
+            tryMove(st, &st->inRound.faller, -1, 0);
+            st->inRound.moveDelayMillis = st->settings.moveDelayMillis;
+        } else if (st->inRound.held.right) {
+            tryMove(st, &st->inRound.faller, 1, 0);
+            st->inRound.moveDelayMillis = st->settings.moveDelayMillis;
         }
     }
-    if (st->held.left || st->held.right || st->held.down) {
-        st->moveDelayMillis -= in.dt;
-        if (!st->moving) {
-            st->moveDelayMillis = st->settings.moveStartDelayMillis;
+    if (st->inRound.held.left || st->inRound.held.right || st->inRound.held.down) {
+        st->inRound.moveDelayMillis -= in.dt;
+        if (!st->inRound.moving) {
+            st->inRound.moveDelayMillis = st->settings.moveStartDelayMillis;
         }
-        st->moving = true;
+        st->inRound.moving = true;
     } else {
-        st->moving = false;
-        st->dropAccel = 0;
-        st->moveDelayMillis = 0;
+        st->inRound.moving = false;
+        st->inRound.dropAccel = 0;
+        st->inRound.moveDelayMillis = 0;
     }
 
-	if (st->shaking > 0)
-    	st->shaking -= in.dt;
-    st->droptick += in.dt;
-    float tick = tickInterval - st->score*20;
+	if (st->inRound.shaking > 0)
+    	st->inRound.shaking -= in.dt;
+    st->inRound.droptick += in.dt;
+    float tick = tickInterval - st->inRound.score*20;
     if (tick < 200) {
         tick = 200;
     }
 
     // if the faller moved or rotated...
-    if (st->faller.x != oldFaller.x || st->faller.y != oldFaller.y || st->faller.orientation != oldFaller.orientation) {
+    if (st->inRound.faller.x != oldFaller.x || st->inRound.faller.y != oldFaller.y || st->inRound.faller.orientation != oldFaller.orientation) {
         // ...and it is "resting"...
-        Piece f = st->faller;
+        Piece f = st->inRound.faller;
         if (!tryMove(st, &f, 0, 1)) {
             // ...reset droptick
-            st->droptick = tick/2;
+            st->inRound.droptick = tick/2;
         }
     }
-    if (st->droptick > tick) {
-        st->droptick = 0;
-        if (!tryMove(st, &st->faller, 0, 1)) {
-            placePiece(st, &st->faller);
+    if (st->inRound.droptick > tick) {
+        st->inRound.droptick = 0;
+        if (!tryMove(st, &st->inRound.faller, 0, 1)) {
+            placePiece(st, &st->inRound.faller);
             if (!spawnFaller(st)) {
                 gameOver(st);
                 return true;
@@ -1159,8 +1147,8 @@ bool updateInRound(GameState *st, InputData in) {
     }
     Vec2 ul = border(st).pos;
     for (int i = 0; i < MAX_BLOCKS; i++) {
-        if (!st->blocks[i].inUse) continue;
-        Block *b = &st->blocks[i];
+        if (!st->inRound.blocks[i].inUse) continue;
+        Block *b = &st->inRound.blocks[i];
         if (b->onBoard) {
             b->targetPos = gridBlockPos(st, ul, b->x, b->y);
             b->tweenStep += MIN(in.dt / 400.0f, 1.0f);
@@ -1179,7 +1167,7 @@ bool updateInRound(GameState *st, InputData in) {
     }
 
     for (int i = 0; i < FLASH_MESSAGE_COUNT; i++) {
-        FlashMessage *m = &st->messages[i];
+        FlashMessage *m = &st->inRound.messages[i];
         if (!m->active) continue;
         m->active = (m->lifetime -= in.dt) > 0;
     }
@@ -1193,15 +1181,15 @@ void renderBackground(Renderer *r, GameState *st) {
     }
     DrawOpts2d opts;
     opts.tint = white;
-    opts.tint.r = 0.9f-0.4f*cosf(st->elapsed/7500.0f);
-    opts.tint.b = 0.3f+0.4f*sinf(st->elapsed/2500.0f);
-    opts.tint.g = 0.35f+0.3f*cosf(st->elapsed/5500.0f);
+    opts.tint.r = 0.9f-0.4f*cosf(st->inRound.elapsed/7500.0f);
+    opts.tint.b = 0.3f+0.4f*sinf(st->inRound.elapsed/2500.0f);
+    opts.tint.g = 0.35f+0.3f*cosf(st->inRound.elapsed/5500.0f);
     opts.tint.a = 0.08f;
     const int n = 10;
     for (int i = 0; i < n; i++) {
         opts.scale = vec2(scale()*7*((float)i)/n, scale()*7*((float)i)/n);
-        opts.rotation = M_PI/2 + st->elapsed/(i*20.0f);
-        Vec2 center = vec2(app->width/2+scale()*60.0f/i*cosf(st->elapsed/2200.0f), app->height/2+scale()*60.0f/i*sinf(st->elapsed/2200.0f));
+        opts.rotation = M_PI/2 + st->inRound.elapsed/(i*20.0f);
+        Vec2 center = vec2(app->width/2+scale()*60.0f/i*cosf(st->inRound.elapsed/2200.0f), app->height/2+scale()*60.0f/i*sinf(st->inRound.elapsed/2200.0f));
         drawMesh(r, &m, center, r->defaultTexture, opts);
     }
 }
@@ -1214,30 +1202,25 @@ void renderInRound(Renderer *r, GameState *st) {
     renderToTexture(r, &rt);
     clear(r);
 
-    if (st->shaking > 0 && st->settings.screenShake) {
-        r->offset = vec2(powf(st->shaking/750.0f,2)*randn(scale()*10), powf(st->shaking/750.0f,2)*randn(scale()*10));
+    if (st->inRound.shaking > 0 && st->settings.screenShake) {
+        r->offset = vec2(powf(st->inRound.shaking/750.0f,2)*randn(scale()*10), powf(st->inRound.shaking/750.0f,2)*randn(scale()*10));
     } else {
         r->offset.x = 0;
         r->offset.y = 0;
     }
     renderBackground(r, st);
-    if (st->paused) {
-        //drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2, "PAUSED", scaleOpts());
-        drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2, "PAUSED");
-        return;
-    }
 
     drawRectOutline(r, border(st), white, 2.0f);
     if (st->settings.showGhost)
         renderGhost(r, st);
-    if (savedSize < SANDS_OF_TIME || rewinding) {
+    if (st->rw.size < SANDS_OF_TIME || st->rw.rewinding) {
         drawRectOutline(r, rect(
             vec2(0.25*app->width, app->height - scale()*42),
             0.5*app->width, scale()*16
         ), white, scale()*3.0f);
         drawRect(r, rect(
             vec2(0.25*app->width, app->height - scale()*40),
-            (float(savedSize)/SANDS_OF_TIME)*(0.5*app->width), scale()*12
+            (float(st->rw.size)/SANDS_OF_TIME)*(0.5*app->width), scale()*12
         ), white);
     }
     renderBoard(r, st);
@@ -1247,7 +1230,7 @@ void renderInRound(Renderer *r, GameState *st) {
     Vec2 messageBase = vec2(app->width/2, app->height*0.7);
     Vec2 diff = vec2(0, -scale()*ubuntu_m32.lineHeight*2.0f);
     for (int i = 0; i < FLASH_MESSAGE_COUNT; i++) {
-        FlashMessage *m = &st->messages[i];
+        FlashMessage *m = &st->inRound.messages[i];
         if (!m->active) continue;
         Vec2 pos = m->pos;
         if (pos.x == 0 && pos.y == 0)
@@ -1261,9 +1244,9 @@ void renderInRound(Renderer *r, GameState *st) {
     renderToScreen(r);
 
     DrawOpts2d opts = {};
-    if (rewinding) {
+    if (st->rw.rewinding) {
         useShader(r, &vhsShader);
-        glUniform1f(r->currentShader->uniforms.timeLoc, st->elapsed);
+        glUniform1f(r->currentShader->uniforms.timeLoc, st->inRound.elapsed);
         glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
         opts.shader = &vhsShader;
     }
@@ -1273,32 +1256,21 @@ void renderInRound(Renderer *r, GameState *st) {
 }
 
 bool updateGameOver(GameState *st, InputData in) {
-    for (int i = 0; i < in.numKeyEvents; i++) {
-        KeyEvent e = keyEvent(&in, i);
-        if (!e.state.down)
-            continue;
-        switch (e.key) {
-        case SDLK_r:
-            transitionStartRound(st);
-            break;
-        }
-    }
+    if (keyState(&in, SDLK_r).down)
+        transitionStartRound(st);
     return true;
 }
 
 bool updateOptions(GameState *st, InputData in) {
     if (st->menus[st->currentMenu].interaction != KEYBINDING) {
-        for (int i = 0; i < in.numKeyEvents; i++) {
-            KeyEvent e = keyEvent(&in, i);
-            if (!e.state.down)
-                continue;
-
-            switch (e.key) {
-            case SDLK_ESCAPE:
-                if (!st->roundInProgress) transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
+        if (keyState(&in, SDLK_ESCAPE).down) {
+            if (st->currentMenu == 0) {
+                if (!st->inRound.roundInProgress) transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
                 else popScene(st);
-                return true;
+            } else {
+                st->currentMenu = 0;
             }
+            return true;
         }
     }
 
@@ -1320,7 +1292,7 @@ bool updateOptions(GameState *st, InputData in) {
         }
     }
     if (btn == OptionsMenu_ResumeButton) {
-        if (!st->roundInProgress) transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
+        if (!st->inRound.roundInProgress) transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
         else popScene(st);
         return true;
     } else if (btn == OptionsMenu_BackButton) {
@@ -1343,11 +1315,13 @@ void renderOptions(Renderer *r, GameState *st) {
 
     // I'd rather do this in some helper function
     st->options.topCenter = vec2(app->width/2, 200*scale());
+    st->controlsMenu.topCenter = st->options.topCenter;
+    st->settingsMenu.topCenter = st->options.topCenter;
     st->options.scale = scaleOpts().scale;
 
     DrawOpts2d opts = scaleOpts();
     opts.meshBuffer = meshBuffer;
-    DrawOpts2d hotOpts = defaultHotOpts(st->elapsed);
+    DrawOpts2d hotOpts = defaultHotOpts(st->inRound.elapsed);
     hotOpts.meshBuffer = meshBuffer;
     scale(&hotOpts.scale, scale());
     drawMenu(r, &st->menus[st->currentMenu], hotOpts, opts);
@@ -1476,12 +1450,12 @@ void renderScene(Renderer *r, GameState *st, Scene s) {
     // updated all at once (once the shader is bound, also);
     // really would like to refactor the uniforms generally as well
     useShader(r, &titleShader);
-    glUniform1f(r->currentShader->uniforms.timeLoc, st->elapsed);
+    glUniform1f(r->currentShader->uniforms.timeLoc, st->inRound.elapsed);
     glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
     glUniform2fv(r->currentShader->uniforms.mouseLoc, 1, (const GLfloat *)&st->lastMousePos);
 
     useShader(r, &titleBGShader);
-    glUniform1f(r->currentShader->uniforms.timeLoc, st->elapsed);
+    glUniform1f(r->currentShader->uniforms.timeLoc, st->inRound.elapsed);
     glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
     Vec2 dim = vec2(app->width, app->height);
     glUniform2fv(glGetUniformLocation(titleBGShader.handle, "dim"), 1, (GLfloat*)&dim);
@@ -1489,7 +1463,7 @@ void renderScene(Renderer *r, GameState *st, Scene s) {
     // TODO(ktravis): we should do this inside the "useShader" call maybe, or perhaps something similar in the renderer
 
     useShader(r, &r->defaultShader);
-    glUniform1f(r->currentShader->uniforms.timeLoc, st->elapsed);
+    glUniform1f(r->currentShader->uniforms.timeLoc, st->inRound.elapsed);
     glUniformMatrix4fv(r->currentShader->uniforms.projLoc, 1, GL_FALSE, (const GLfloat *)&r->proj);
 
     switch (s) {

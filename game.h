@@ -119,24 +119,14 @@ bool compileExtraShaders(Renderer *r);
 #define QUEUE_SIZE (2*2*NUM_PIECES)
 #define MAX_BLOCKS (2*BOARD_HEIGHT*BOARD_WIDTH)
 
-struct GameState {
-    Scene scenes[128];
-    int currentScene;
-
-    Settings settings;
-
+struct InRoundState {
     int score;
-    int hiscore;
-
     float droptick;
 
     int stored;
     bool canStore;
 
     float elapsed;
-    float fps;
-
-    Transition transition;
 
     // want smooth control
     struct {
@@ -144,7 +134,6 @@ struct GameState {
         bool right;
         bool down;
     } held;
-    Vec2 lastMousePos;
 
     Cell board[BOARD_HEIGHT][BOARD_WIDTH];
     int queue[QUEUE_SIZE];
@@ -153,12 +142,6 @@ struct GameState {
     int lastBlockInUse;
     Piece faller;
 
-    // scene specific:
-
-    // TITLE
-    MenuContext titleMenu;
-
-    // IN_ROUND
     bool roundInProgress = false;
     bool paused = false;
     bool gameOver = false;
@@ -168,6 +151,40 @@ struct GameState {
     float shaking;
 
     FlashMessage messages[FLASH_MESSAGE_COUNT];
+};
+
+#define SANDS_OF_TIME 1024
+
+struct RewindBuffer {
+    int cursor = 0;
+    int size = 0;
+    InRoundState savedStates[SANDS_OF_TIME];
+    /* InputData savedInputs[SANDS_OF_TIME]; */
+    bool rewinding = false;
+    int rwFactor = 2;
+};
+
+struct GameState {
+    Scene scenes[128];
+    int currentScene;
+
+    Settings settings;
+
+    int hiscore;
+
+    float fps;
+
+    Transition transition;
+    Vec2 lastMousePos;
+
+    // scene specific:
+
+    // TITLE
+    MenuContext titleMenu;
+
+    // IN_ROUND
+    InRoundState inRound = {};
+    RewindBuffer rw = {};
 
     // OPTIONS
     int currentMenu = 0;
