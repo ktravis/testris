@@ -16,6 +16,7 @@ enum Scene {
     IN_ROUND,
     OPTIONS,
     GAME_OVER,
+    REPLAY_FINISHED,
 };
 
 struct Transition {

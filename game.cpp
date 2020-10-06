@@ -541,11 +541,26 @@ Rect border(GameState *st) {
     };
 }
 
+bool replaying = false;
+int cursor = 0;
+struct {
+    uint32_t seed;
+    uint32_t cap = 0, len = 0;
+    InputData *replayInputs;
+} replayData;
+
 void startRound(GameState *st) {
     st->inRound.score = 0;
     st->inRound.stored = -1;
     st->inRound.canStore = true;
     st->inRound.roundInProgress = true;
+    if (!replaying) {
+        replayData.len = 0;
+        replayData.cap = 64;
+        replayData.replayInputs = (InputData *)malloc(sizeof(InputData)*replayData.cap);
+    }
+    log("setting seed %u", replayData.seed);
+    srand(replayData.seed);
 
 
     for (int y = 0; y < BOARD_HEIGHT; y++)
@@ -561,6 +576,7 @@ void startRound(GameState *st) {
         base[i] = i;
     }
     // fill the entire queue
+    st->inRound.queueRemaining = 0;
     for (int x = 0; x < 4; x++) {
         // fisher-yates shuffle
         for (int i = n-1; i > 0; i--) { 
@@ -754,6 +770,11 @@ void renderBoard(Renderer *r, GameState *st) {
     for (int i = 0; i < MAX_BLOCKS; i++) {
         if (!st->inRound.blocks[i].inUse) continue;
         Block *b = &st->inRound.blocks[i];
+        // fix for scaling while in-round scene is visible but not updating
+        if (b->onBoard) {
+            b->targetPos = gridBlockPos(st, ul, b->x, b->y);
+            b->pos = b->targetPos;
+        }
         DrawOpts2d opts;
         Rect rx = rect(b->pos, blockSide(st), blockSide(st));
         opts.origin = scaled(rx.box, 0.5);
@@ -886,6 +907,8 @@ void renderQueue(Renderer *r, GameState *st) {
 bool opaque(Scene s) {
     switch (s) {
     // add more here
+    case REPLAY_FINISHED:
+        return false;
     default:
         return true;
     }
@@ -915,6 +938,7 @@ void renderGameState(Renderer *r, GameState *st) {
 bool updateTitle(GameState *st, InputData in) {
     MenuButton *btn = updateMenu(&st->titleMenu, in);
     if (btn == MainMenu_StartGameButton) {
+        replayData.seed = rand();
         transitionStartRound(st);
     } else if (btn == MainMenu_OptionsButton) {
         transition(st, Transition::CHECKER_IN_OUT, OPTIONS, 1500);
@@ -927,6 +951,17 @@ bool updateTitle(GameState *st, InputData in) {
         }
     } else if (btn == MainMenu_QuitButton) {
         return false;
+    }
+    if (keyState(&in, SDLK_o).down) {
+        uint8_t *b = readFile("replay.testris");
+        if (b) {
+            memcpy(&replayData, b, sizeof(replayData));
+            replayData.replayInputs = (InputData *)malloc(sizeof(InputData)*replayData.cap);
+            memcpy(replayData.replayInputs, b+sizeof(replayData), replayData.len*sizeof(InputData));
+            free(b);
+            transitionStartRound(st);
+            replaying = true;
+        }
     }
     return true;
 }
@@ -974,11 +1009,6 @@ void renderTitle(Renderer *r, GameState *st) {
     drawMenu(r, &st->titleMenu, hotOpts, scaleOpts());
 }
 
-/* float moveRate = 12.0f; */
-/* float maxMoveDelayMillis = 1000.0f/moveRate; */ 
-/* int maxMoveDelayMillis = 64; */ 
-/* int moveStartDelayMillis = 100; */
-
 void gameOver(GameState *st) {
     transition(st, Transition::ROWS_ACROSS, GAME_OVER, 1500);
 }
@@ -987,7 +1017,39 @@ bool onscreen(GameState *st, Block *b) {
     return contains(rect(-blockSide(st), -blockSide(st), app->width+blockSide(st), app->height+blockSide(st)), b->pos);
 }
 
+bool updateReplayFinished(GameState *st, InputData in) {
+    if (keyState(&in, SDLK_r).down) {
+        popScene(st);
+        transitionStartRound(st);
+    } else if (anyKeyPress(&in)) {
+        popScene(st);
+        transition(st, Transition::ROWS_ACROSS, TITLE, 1200);
+    }
+    return true;
+}
+
 bool updateInRound(GameState *st, InputData in) {
+    if (replaying && anyKeyPress(&in)) replaying = false;
+    if (keyState(&in, SDLK_ESCAPE).down) {
+        st->currentMenu = 0;
+        pushScene(st, OPTIONS);
+        return true;
+    }
+    if (replaying) {
+        if (cursor+1 >= replayData.len) {
+            cursor = 0;
+            pushScene(st, REPLAY_FINISHED);
+            return true;
+        }
+        in = replayData.replayInputs[cursor++];
+    } else {
+        if (replayData.len+1 >= replayData.cap) {
+            replayData.cap = (replayData.cap == 0 ? 4096 : replayData.cap*2);
+            replayData.replayInputs = (InputData *)realloc(replayData.replayInputs, sizeof(InputData)*replayData.cap);
+        }
+        replayData.replayInputs[replayData.len++] = in;
+    }
+
     if (st->rw.rewinding) {
         st->rw.size -= st->rw.rwFactor;
         if (st->rw.size < 0) st->rw.size = 0;
@@ -1017,13 +1079,6 @@ bool updateInRound(GameState *st, InputData in) {
         if (e.state.down) {
             if (e.key == st->settings.controls.mute) {
                 toggleMute();
-            } else {
-                switch (e.key) {
-                case SDLK_ESCAPE:
-                    st->currentMenu = 0;
-                    pushScene(st, OPTIONS);
-                    return true;
-                }
             }
 
             if (e.key == st->settings.controls.rotateCCW) {
@@ -1079,6 +1134,26 @@ bool updateInRound(GameState *st, InputData in) {
                     flashMessage(st, "state restored");
                     free(b);
                 }
+            } else if (e.key == SDLK_i) {
+                // save state
+                char *filename = "replay.testris";
+                char *expanded = expandPath(filename);
+                if (expanded) {
+                    filename = expanded;
+                }
+
+                FILE *f = fopen(filename, "wb");
+                if (!f) {
+                    fprintf(stderr, (char*)"error writing to file %s: %s\n", filename, strerror(errno));
+                    free(expanded);
+                    return false;
+                }
+                fwrite((uint8_t*)&replayData, sizeof(replayData), 1, f);
+                fwrite((uint8_t*)replayData.replayInputs, sizeof(uint8_t), sizeof(InputData)*replayData.cap, f);
+                fclose(f);
+                free(expanded);
+
+                flashMessage(st, "replay saved");
             }
         } else if (e.state.up) {
             if (e.key == st->settings.controls.down) {
@@ -1192,6 +1267,14 @@ void renderBackground(Renderer *r, GameState *st) {
         Vec2 center = vec2(app->width/2+scale()*60.0f/i*cosf(st->inRound.elapsed/2200.0f), app->height/2+scale()*60.0f/i*sinf(st->inRound.elapsed/2200.0f));
         drawMesh(r, &m, center, r->defaultTexture, opts);
     }
+}
+
+void renderReplayFinished(Renderer *r, GameState *st) {
+    Color c = black;
+    c.a = 0.5f;
+    drawRect(r, rect(vec2(0, app->height/2-scale()*50), app->width, 100*scale()), c);
+    drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2 - 25*scale(), "replay finished");
+    drawTextCentered(r, &mono_m18, app->width/2, app->height/2 + 15*scale(), "press r to restart, any key to return");
 }
 
 void renderInRound(Renderer *r, GameState *st) {
@@ -1440,6 +1523,8 @@ bool updateScene(GameState *st, InputData in, Scene s) {
         return updateOptions(st, in);
     case GAME_OVER:
         return updateGameOver(st, in);
+    case REPLAY_FINISHED:
+        return updateReplayFinished(st, in);
     }
     assert(false);
     return false;
@@ -1478,6 +1563,9 @@ void renderScene(Renderer *r, GameState *st, Scene s) {
         break;
     case GAME_OVER:
         renderGameOver(r, st);
+        break;
+    case REPLAY_FINISHED:
+        renderReplayFinished(r, st);
         break;
     }
 }
