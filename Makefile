@@ -27,6 +27,7 @@ export BINARYEN := /usr
 
 EMSCRIPTEN_FLAGS := -lidbfs.js -s WASM=1 -s USE_SDL_MIXER=2 -s USE_LIBPNG=1 \
 	-s USE_FREETYPE=1 -s USE_SDL=2 -s USE_WEBGL2=1 -s FULL_ES3=1 \
+	-s EXPORTED_FUNCTIONS='["_main","_loadReplay"]' -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
 	-s TOTAL_MEMORY=100663296 -s ERROR_ON_UNDEFINED_SYMBOLS=0 --preload-file assets/
 
 wasm: $(BUILDDIR)/js/testris.js $(BUILDDIR)/js/index.html

@@ -205,6 +205,7 @@ hooray:
 }
 
 DEFINE_BUTTON(MainMenu_StartGameButton);
+DEFINE_BUTTON(MainMenu_WatchReplayButton);
 DEFINE_BUTTON(MainMenu_OptionsButton);
 DEFINE_BUTTON(MainMenu_HighScoresButton);
 DEFINE_BUTTON(MainMenu_QuitButton);
@@ -216,9 +217,12 @@ void initTitleMenu(GameState *st) {
     menu->alignWidth = 24;
     menu->topCenter = vec2(app->width/2, app->height/2 + 140*scale());
     addMenuLine(menu, (char *)"start a game", MainMenu_StartGameButton);
+    addMenuLine(menu, (char *)"watch a replay", MainMenu_WatchReplayButton);
     addMenuLine(menu, (char *)"options", MainMenu_OptionsButton);
     addMenuLine(menu, (char *)"high scores", MainMenu_HighScoresButton);
+#ifndef __EMSCRIPTEN__
     addMenuLine(menu, (char *)"quit", MainMenu_QuitButton);
+#endif
 
     menu->hotIndex = 0;
 }
@@ -228,6 +232,7 @@ DEFINE_BUTTON(OptionsMenu_ControlsButton);
 DEFINE_BUTTON(OptionsMenu_SettingsButton);
 DEFINE_BUTTON(OptionsMenu_BackButton);
 DEFINE_BUTTON(OptionsMenu_QuitButton);
+DEFINE_BUTTON(OptionsMenu_MainMenuButton);
 DEFINE_BUTTON(OptionsMenu_ResetDefaults);
 
 DEFINE_BUTTON(OptionsMenu_ScaleUpButton);
@@ -243,8 +248,10 @@ void initOptionsMenu(GameState *st) {
     addMenuLine(menu, (char *)"resume", OptionsMenu_ResumeButton);
     addMenuLine(menu, (char *)"controls", OptionsMenu_ControlsButton);
     addMenuLine(menu, (char *)"settings", OptionsMenu_SettingsButton);
-    addMenuLine(menu, (char *)"reset defaults", OptionsMenu_ResetDefaults);
+    addMenuLine(menu, (char *)"main menu", OptionsMenu_MainMenuButton);
+#ifndef __EMSCRIPTEN__
     addMenuLine(menu, (char *)"quit", OptionsMenu_QuitButton);
+#endif
 
     menu->hotIndex = 1;
 
@@ -269,6 +276,7 @@ void initOptionsMenu(GameState *st) {
     addMenuLine(menu, (char *)"save", &st->settings.controls.save);
     addMenuLine(menu, (char *)"restore", &st->settings.controls.restore);
     addMenuLine(menu, (char *)"");
+    addMenuLine(menu, (char *)"reset defaults", OptionsMenu_ResetDefaults);
     addMenuLine(menu, (char *)"back", OptionsMenu_BackButton);
 
     menu->hotIndex = 1;
@@ -288,6 +296,7 @@ void initOptionsMenu(GameState *st) {
     addMenuLine(menu, (char *)"scale up", OptionsMenu_ScaleUpButton);
     addMenuLine(menu, (char *)"scale down", OptionsMenu_ScaleDownButton);
     addMenuLine(menu, (char *)"");
+    addMenuLine(menu, (char *)"reset defaults", OptionsMenu_ResetDefaults);
     addMenuLine(menu, (char *)"back", OptionsMenu_BackButton);
 
     menu->hotIndex = 1;
@@ -550,14 +559,17 @@ struct {
 } replayData;
 
 void startRound(GameState *st) {
+    st->rw.cursor = 0;
+    st->rw.size = 0;
     st->inRound.score = 0;
     st->inRound.stored = -1;
     st->inRound.canStore = true;
     st->inRound.roundInProgress = true;
     if (!replaying) {
         replayData.len = 0;
-        replayData.cap = 64;
-        replayData.replayInputs = (InputData *)malloc(sizeof(InputData)*replayData.cap);
+        replayData.cap = 0;
+        if (replayData.replayInputs) free(replayData.replayInputs);
+        replayData.replayInputs = NULL;
     }
     log("setting seed %u", replayData.seed);
     srand(replayData.seed);
@@ -854,7 +866,9 @@ void renderGameOver(Renderer *r, GameState *st) {
     DrawOpts2d opts = scaleOpts();
     drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2, "OOPS", opts);
 
-    drawTextCentered(r, &ubuntu_m16, app->width/2, app->height/2+scale()*128.0f, "( r to restart )", opts);
+    char buf[256];
+    snprintf(buf, sizeof(buf), "( '%s' to save replay, '%s' to restart )", "i", SDL_GetKeyName(st->settings.controls.reset));
+    drawTextCentered(r, &ubuntu_m16, app->width/2, app->height/2+scale()*128.0f, buf, opts);
 }
 
 void renderScore(Renderer *r, GameState *st) {
@@ -914,6 +928,72 @@ bool opaque(Scene s) {
     }
 }
 
+bool saveReplay(GameState *st) {
+    uint8_t *rdPtr = (uint8_t*)&replayData;
+    uint8_t *inPtr = (uint8_t*)replayData.replayInputs;
+    uint32_t inSize = sizeof(InputData)*replayData.len;
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        /* var buf = Module._malloc($1+$3); */
+        var a = Module.HEAPU8.subarray($0, $0+$1);
+        var b = Module.HEAPU8.subarray($2, $2+$3);
+
+        var blob = new Blob([a, b], {
+          type: 'application/octet-stream',
+        });
+        var url = window.URL.createObjectURL(blob);
+
+        var dl = document.createElement('a');
+        dl.href = url;
+        dl.download = (new Date().getTime())+'.tsreplay';
+        dl.style = 'display: none';
+        document.body.appendChild(dl);
+        dl.click();
+        dl.remove();
+
+        setTimeout(() => {
+          return window.URL.revokeObjectURL(url);
+        }, 1000);
+    }, rdPtr, sizeof(replayData), inPtr, inSize);
+#else
+    char *filename = (char*)"blah.tsreplay";
+    char *expanded = expandPath(filename);
+    if (expanded) {
+        filename = expanded;
+    }
+
+    FILE *f = fopen(filename, "wb");
+    if (!f) {
+        fprintf(stderr, (char*)"error writing to file %s: %d\n", filename, errno);
+        free(expanded);
+        return false;
+    }
+    fwrite(rdPtr, sizeof(replayData), 1, f);
+    fwrite(inPtr, sizeof(uint8_t), inSize, f);
+    fclose(f);
+    free(expanded);
+#endif
+
+    flashMessage(st, "replay saved");
+    return true;
+}
+
+extern "C" {
+    bool loadReplay(GameState *st, uint8_t *b) {
+        for (int i = 0; i < sizeof(replayData); i++) {
+            ((uint8_t*)(&replayData))[i] = b[i];
+        }
+        replayData.replayInputs = (InputData *)malloc(sizeof(InputData)*replayData.len);
+        replayData.cap = replayData.len;
+        for (int i = 0; i < replayData.len*sizeof(InputData); i++) {
+            ((uint8_t*)replayData.replayInputs)[i] = b[sizeof(replayData)+i];
+        }
+        transitionStartRound(st);
+        replaying = true;
+        return true;
+    }
+};
+
 void renderGameState(Renderer *r, GameState *st) {
     int i = st->currentScene;
     while (i > 0 && !opaque(st->scenes[i])) {
@@ -938,8 +1018,37 @@ void renderGameState(Renderer *r, GameState *st) {
 bool updateTitle(GameState *st, InputData in) {
     MenuButton *btn = updateMenu(&st->titleMenu, in);
     if (btn == MainMenu_StartGameButton) {
+        replaying = false;
         replayData.seed = rand();
         transitionStartRound(st);
+    } else if (btn == MainMenu_WatchReplayButton) {
+#ifdef __EMSCRIPTEN__
+        EM_ASM({
+            try {
+              var chooser = document.getElementById('fileElem');
+              chooser.value = "";
+              chooser.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                  this.files[0].arrayBuffer().then(x => {
+                    var result = Module.ccall('loadReplay', 'number', ['number', 'array'], [$0, new Uint8Array(x)]);
+                    console.log(result);
+                  });
+                }
+              }, {capture: false, once: true});
+              document.getElementById('fileElem').click();
+           } catch (e) {
+              console.error(e);
+              return null;
+           }
+        }, st);
+#else
+        char *replayFile = (char*)"replay.testris";
+        uint8_t *b = readFile(replayFile);
+        if (b) {
+            loadReplay(st, b);
+            free(b);
+        }
+#endif
     } else if (btn == MainMenu_OptionsButton) {
         transition(st, Transition::CHECKER_IN_OUT, OPTIONS, 1500);
     } else if (btn == MainMenu_HighScoresButton) {
@@ -951,17 +1060,6 @@ bool updateTitle(GameState *st, InputData in) {
         }
     } else if (btn == MainMenu_QuitButton) {
         return false;
-    }
-    if (keyState(&in, SDLK_o).down) {
-        uint8_t *b = readFile("replay.testris");
-        if (b) {
-            memcpy(&replayData, b, sizeof(replayData));
-            replayData.replayInputs = (InputData *)malloc(sizeof(InputData)*replayData.cap);
-            memcpy(replayData.replayInputs, b+sizeof(replayData), replayData.len*sizeof(InputData));
-            free(b);
-            transitionStartRound(st);
-            replaying = true;
-        }
     }
     return true;
 }
@@ -1029,7 +1127,12 @@ bool updateReplayFinished(GameState *st, InputData in) {
 }
 
 bool updateInRound(GameState *st, InputData in) {
-    if (replaying && anyKeyPress(&in)) replaying = false;
+    if (replaying && anyKeyPress(&in)) {
+        replaying = false;
+        flashMessage(st, "replay stopped");
+        InRoundState zero = {};
+        st->inRound.held = zero.held;
+    }
     if (keyState(&in, SDLK_ESCAPE).down) {
         st->currentMenu = 0;
         pushScene(st, OPTIONS);
@@ -1136,24 +1239,7 @@ bool updateInRound(GameState *st, InputData in) {
                 }
             } else if (e.key == SDLK_i) {
                 // save state
-                char *filename = "replay.testris";
-                char *expanded = expandPath(filename);
-                if (expanded) {
-                    filename = expanded;
-                }
-
-                FILE *f = fopen(filename, "wb");
-                if (!f) {
-                    fprintf(stderr, (char*)"error writing to file %s: %s\n", filename, strerror(errno));
-                    free(expanded);
-                    return false;
-                }
-                fwrite((uint8_t*)&replayData, sizeof(replayData), 1, f);
-                fwrite((uint8_t*)replayData.replayInputs, sizeof(uint8_t), sizeof(InputData)*replayData.cap, f);
-                fclose(f);
-                free(expanded);
-
-                flashMessage(st, "replay saved");
+                saveReplay(st);
             }
         } else if (e.state.up) {
             if (e.key == st->settings.controls.down) {
@@ -1336,11 +1422,22 @@ void renderInRound(Renderer *r, GameState *st) {
     drawTexturedQuad(r, vec2(), app->width, app->height, rt.tex, rect(0, 1, 1, 0), opts);
 
     useShader(r, &r->defaultShader);
+
+    if (replaying) {
+        Color c = white;
+        c.g = c.b = (sinf(st->inRound.elapsed/200.0f)+1)/2;
+        c.a = 0.75f;
+        DrawOpts2d opts = {};
+        opts.tint = c;
+        drawTextCentered(r, &mono_m18, app->width/2, 25*scale(), "replay in progress", opts);
+    }
 }
 
 bool updateGameOver(GameState *st, InputData in) {
-    if (keyState(&in, SDLK_r).down)
+    if (keyState(&in, st->settings.controls.reset).down)
         transitionStartRound(st);
+    else if (keyState(&in, SDLK_i).down)
+        saveReplay(st);
     return true;
 }
 
@@ -1384,6 +1481,10 @@ bool updateOptions(GameState *st, InputData in) {
         st->currentMenu = 1;
     } else if (btn == OptionsMenu_SettingsButton) {
         st->currentMenu = 2;
+    } else if (btn == OptionsMenu_MainMenuButton) {
+        if (st->inRound.roundInProgress) popScene(st);
+        transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
+        return true;
     } else if (btn == OptionsMenu_QuitButton) {
         return false;
     }
