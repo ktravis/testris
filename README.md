@@ -9,23 +9,30 @@ I made a custom engine on SDL2 for mostly 2d rendering (though 3d is supported, 
 - general mesh rendering
 - shader pipeline
 - very simple serde
-- sound effects (working, not currently in use)
+- sound effects (native working, not currently in use)
 - sprite sheets/simple animation (working, not currently in use)
 
+Features:
+
+- rewind!
+- replay files
+- dynamic window scaling (native)
 
 TODO:
-- replay
-- export replay file
 - high score file
+- set replay filename (native)
+- replay file safety checks
+- replay format compression
 - add sound effects
-- timing fixes
-- scale difficulty
+- scale difficulty when rewinding
+- score combos
 - install requirements
 - make background scale redness with tower height
 
 Known issues:
-- web settings save does not work
+- some rotational issues with tight spaces
 - web scale canvas with window size
+- web sound effects
 
 ## uses
 
