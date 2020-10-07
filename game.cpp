@@ -1153,6 +1153,27 @@ bool updateInRound(GameState *st, InputData in) {
         replayData.replayInputs[replayData.len++] = in;
     }
 
+    for (int i = 0; i < in.numKeyEvents; i++) {
+        KeyEvent e = keyEvent(&in, i);
+        if (e.state.down) {
+            if (e.key == st->settings.controls.down) {
+                st->inRound.held.down = true;
+            } else if (e.key == st->settings.controls.left) {
+                st->inRound.held.left = true;
+            } else if (e.key == st->settings.controls.right) {
+                st->inRound.held.right = true;
+            }
+        } else if (e.state.up) {
+            if (e.key == st->settings.controls.down) {
+                st->inRound.held.down = false;
+            } else if (e.key == st->settings.controls.left) {
+                st->inRound.held.left = false;
+            } else if (e.key == st->settings.controls.right) {
+                st->inRound.held.right = false;
+            }
+        }
+    }
+
     if (st->rw.rewinding) {
         st->rw.size -= st->rw.rwFactor;
         if (st->rw.size < 0) st->rw.size = 0;
@@ -1169,7 +1190,7 @@ bool updateInRound(GameState *st, InputData in) {
         st->rw.savedStates[(st->rw.cursor + st->rw.size) % SANDS_OF_TIME] = st->inRound;
         if (st->rw.size < SANDS_OF_TIME) st->rw.size++;
         else st->rw.cursor = (st->rw.cursor+1) % SANDS_OF_TIME;
-        if (keyState(&in, st->settings.controls.rewind).down) {
+        if (st->rw.size >= RW_THRESHOLD && keyState(&in, st->settings.controls.rewind).down) {
             st->rw.rewinding = true;
             /* playSound(whooop); */
         }
@@ -1214,12 +1235,6 @@ bool updateInRound(GameState *st, InputData in) {
                     gameOver(st);
                     return true;
                 }
-            } else if (e.key == st->settings.controls.down) {
-                st->inRound.held.down = true;
-            } else if (e.key == st->settings.controls.left) {
-                st->inRound.held.left = true;
-            } else if (e.key == st->settings.controls.right) {
-                st->inRound.held.right = true;
             } else if (e.key == st->settings.controls.reset) {
                 transitionStartRound(st);
                 return true;
@@ -1240,16 +1255,6 @@ bool updateInRound(GameState *st, InputData in) {
             } else if (e.key == SDLK_i) {
                 // save state
                 saveReplay(st);
-            }
-        } else if (e.state.up) {
-            if (e.key == st->settings.controls.down) {
-                st->inRound.held.down = false;
-            } else if (e.key == st->settings.controls.left) {
-                st->inRound.held.left = false;
-            } else if (e.key == st->settings.controls.right) {
-                st->inRound.held.right = false;
-            } else if (e.key == st->settings.controls.rewind) {
-                st->rw.rewinding = false;
             }
         }
     }
@@ -1383,14 +1388,15 @@ void renderInRound(Renderer *r, GameState *st) {
     if (st->settings.showGhost)
         renderGhost(r, st);
     if (st->rw.size < SANDS_OF_TIME || st->rw.rewinding) {
+        Color c = st->rw.size >= RW_THRESHOLD ? white : red;
         drawRectOutline(r, rect(
             vec2(0.25*app->width, app->height - scale()*42),
             0.5*app->width, scale()*16
-        ), white, scale()*3.0f);
+        ), c, scale()*3.0f);
         drawRect(r, rect(
             vec2(0.25*app->width, app->height - scale()*40),
             (float(st->rw.size)/SANDS_OF_TIME)*(0.5*app->width), scale()*12
-        ), white);
+        ), c);
     }
     renderBoard(r, st);
     renderScore(r, st);

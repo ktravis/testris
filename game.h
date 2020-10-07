@@ -155,6 +155,7 @@ struct InRoundState {
 };
 
 #define SANDS_OF_TIME 1024
+#define RW_THRESHOLD  32
 
 struct RewindBuffer {
     int cursor = 0;
