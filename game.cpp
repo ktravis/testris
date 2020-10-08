@@ -1082,17 +1082,12 @@ void renderTitle(Renderer *r, GameState *st) {
     DrawOpts2d bgOpts = {};
     bgOpts.shader = &titleBGShader;
     Vec2 dim = vec2(app->width, app->height);
-    glUniform2fv(glGetUniformLocation(titleBGShader.handle, "dim"), 1, (GLfloat*)&dim);
     drawRect(r, rect(0, 0, app->width, app->height), bgOpts);
 
     DrawOpts2d opts = scaleOpts();
     opts.shader = &titleShader;
 
     drawTextCentered(r, &mono_m18, app->width/2, app->height/2-300*scale(), title, opts);
-    //Vec2 dim = getTextDimensions(title, &mono_m18);
-    //opts.origin.x = dim.x / 2;
-    //opts.origin.y = -dim.y / 2;
-    //drawText(r, &mono_m18, app->width/2, 0, title, opts);
 
     st->titleMenu.topCenter = vec2(app->width/2, app->height/2 + 140*scale());
     st->titleMenu.scale = scaleOpts().scale;
