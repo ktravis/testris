@@ -42,3 +42,5 @@ build/main
 
 testris.conf
 *.testris
+*.tsreplay
+*.highscores

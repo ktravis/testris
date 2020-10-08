@@ -19,7 +19,6 @@ Features:
 - dynamic window scaling (native)
 
 TODO:
-- high score file
 - set replay filename (native)
 - replay file safety checks
 - replay format compression

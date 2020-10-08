@@ -2,11 +2,8 @@
 
 #include "pieces.cpp"
 
-#ifdef __EMSCRIPTEN__
-#define SETTINGS_FILE "/offline/testris.conf"
-#else
 #define SETTINGS_FILE "testris.conf"
-#endif
+#define HIGHSCORES_FILE "testris.highscores"
 
 uint8_t *ubuntu_ttf_buffer;
 FontAtlas ubuntu_m16;
@@ -325,6 +322,61 @@ DEFINE_SERDE(Settings,
     INT_FIELD(moveStartDelayMillis)
 )
 
+void saveHighScores(GameState *st, const char *filename) {
+    uint8_t *inPtr = (uint8_t*)&st->highScores[0];
+    uint32_t inSize = sizeof(st->highScores);
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        var a = Module.HEAPU8.subarray($0, $0+$1);
+        var data = String.fromCharCode.apply(null, a);
+        localStorage.setItem("highscores", data);
+    }, inPtr, inSize);
+#else
+    char *expanded = expandPath(filename);
+    if (expanded) {
+        filename = expanded;
+    }
+
+    FILE *f = fopen(filename, "wb");
+    if (!f) {
+        fprintf(stderr, (char*)"error writing to file %s: %d\n", filename, errno);
+        free(expanded);
+        return;
+    }
+    fwrite(inPtr, sizeof(uint8_t), inSize, f);
+    fclose(f);
+    free(expanded);
+#endif
+}
+
+bool loadHighScores(GameState *st, const char *filename) {
+    uint8_t *buf = NULL;
+#ifdef __EMSCRIPTEN__
+    buf = (uint8_t*)EM_ASM_INT({
+        try {
+          var jsString = localStorage.getItem("highscores");
+          var lengthBytes = jsString.length+1;
+          var stringOnWasmHeap = _malloc(lengthBytes);
+          stringToAscii(jsString, stringOnWasmHeap, lengthBytes);
+          return stringOnWasmHeap;
+       } catch (e) {
+          console.error(e);
+          return null;
+       }
+    });
+#else
+    buf = readFile(filename);
+#endif
+    if (!buf) {
+        return false;
+    }
+    HighScore *src = (HighScore*)buf;
+    for (int i = 0; i < HIGH_SCORE_LIST_LENGTH; i++)
+        st->highScores[i] = *src++;
+    free(buf);
+    return true;
+}
+
 bool loadSettings(Settings *s, const char *filename) {
     uint8_t *buf = NULL;
 #ifdef __EMSCRIPTEN__
@@ -437,6 +489,8 @@ bool startGame(GameState *st, Renderer *r, App *a) {
 
     //sound_ready = loadAudioAndConvert("./assets/sounds/ready.wav");
     //if (sound_ready == -1) { return false; }
+
+    loadHighScores(st, HIGHSCORES_FILE);
 
     if (!loadSettings(&st->settings, SETTINGS_FILE)) {
         log("settings not found, saving defaults");
@@ -660,9 +714,6 @@ void clearLines(GameState *st) {
         tryClearingLine(st, y);
         st->inRound.score++;
         st->inRound.shaking += st->inRound.shaking > 1 ? 250.0f : 600.0f;
-        if (st->inRound.score > st->hiscore) {
-            st->hiscore = st->inRound.score;
-        }
     }
 }
 
@@ -862,6 +913,66 @@ void renderGhost(Renderer *r, GameState *st) {
     }
 }
 
+void updateFlashMessages(GameState *st, InputData in) {
+    for (int i = 0; i < FLASH_MESSAGE_COUNT; i++) {
+        FlashMessage *m = &st->inRound.messages[i];
+        if (!m->active) continue;
+        m->active = (m->lifetime -= in.dt) > 0;
+    }
+}
+
+void renderFlashMessages(Renderer *r, GameState *st) {
+    Vec2 messageBase = vec2(app->width/2, app->height*0.7);
+    Vec2 diff = vec2(0, -scale()*ubuntu_m32.lineHeight*2.0f);
+    for (int i = 0; i < FLASH_MESSAGE_COUNT; i++) {
+        FlashMessage *m = &st->inRound.messages[i];
+        if (!m->active) continue;
+        Vec2 pos = m->pos;
+        if (pos.x == 0 && pos.y == 0)
+            pos = add(messageBase, scaled(diff, i));
+        DrawOpts2d opts = {};
+        opts.tint.a = 3*m->lifetime / m->totalLifetime;
+        opts.tint.a *= opts.tint.a;
+        drawTextCentered(r, &ubuntu_m32, pos.x, pos.y, m->text, opts);
+    }
+}
+
+void renderHighScores(Renderer *r, GameState *st) {
+    DrawOpts2d opts = scaleOpts();
+
+    drawTextCentered(r, &ubuntu_m32, app->width/2, app->height*0.1f, "high scores", opts);
+    for (int i = 0; i < HIGH_SCORE_LIST_LENGTH; i++) {
+        DrawOpts2d opts = scaleOpts();
+        HighScore hs = st->highScores[i];
+        if (i == st->newHighScore) {
+            opts.tint = red;
+            if (st->highScoreNameCursor == 0) {
+                sprintf(hs.name, "%s", "<enter a name!>");
+            } else if (st->highScoreNameCursor < sizeof(hs.name)-1) {
+                hs.name[st->highScoreNameCursor] = '_';
+                hs.name[st->highScoreNameCursor+1] = '\0';
+            }
+        }
+        if (hs.score) {
+            drawTextf(r, &ubuntu_m32, app->width*0.22, app->height*0.2+i*32*scale(), opts, "%d. %s", i+1, hs.name);
+        } else {
+            opts.tint.a = 0.5f;
+            drawTextf(r, &ubuntu_m32, app->width*0.22, app->height*0.2+i*32*scale(), opts, "%d. <no entry>", i+1);
+        }
+        drawTextf(r, &ubuntu_m32, app->width*0.68, app->height*0.2+i*32*scale(), opts, "%04d", hs.score);
+    }
+
+    renderFlashMessages(r, st);
+
+    if (replayData.len) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "( '%s' to save replay )", "i");
+        drawTextCentered(r, &ubuntu_m16, app->width/2, app->height*0.3+scale()*370.0f, buf, opts);
+    }
+
+    drawTextCentered(r, &ubuntu_m16, app->width/2, app->height*0.3+scale()*400.0f, "escape to return", opts);
+}
+
 void renderGameOver(Renderer *r, GameState *st) {
     DrawOpts2d opts = scaleOpts();
     drawTextCentered(r, &ubuntu_m32, app->width/2, app->height/2, "OOPS", opts);
@@ -869,6 +980,7 @@ void renderGameOver(Renderer *r, GameState *st) {
     char buf[256];
     snprintf(buf, sizeof(buf), "( '%s' to save replay, '%s' to restart )", "i", SDL_GetKeyName(st->settings.controls.reset));
     drawTextCentered(r, &ubuntu_m16, app->width/2, app->height/2+scale()*128.0f, buf, opts);
+    renderFlashMessages(r, st);
 }
 
 void renderScore(Renderer *r, GameState *st) {
@@ -881,7 +993,8 @@ void renderScore(Renderer *r, GameState *st) {
 
     drawText(r, &ubuntu_m32, left, ul.y + border(st).h - scale()*(h+5.0f), "hi:", opts);
     char buf[5];
-    snprintf(buf, sizeof(buf), "%04d", st->hiscore);
+    uint32_t hi = st->highScores[0].score;
+    snprintf(buf, sizeof(buf), "%04d", st->inRound.score > hi ? st->inRound.score : hi);
     drawText(r, &ubuntu_m32, left, ul.y + border(st).h - scale()*5.0f, buf, opts);
 }
 
@@ -1052,12 +1165,7 @@ bool updateTitle(GameState *st, InputData in) {
     } else if (btn == MainMenu_OptionsButton) {
         transition(st, Transition::CHECKER_IN_OUT, OPTIONS, 1500);
     } else if (btn == MainMenu_HighScoresButton) {
-        for (int i = 0; i < array_len(st->titleMenu.lines); i++) {
-            if (st->titleMenu.lines[i].btn == MainMenu_HighScoresButton) {
-                st->titleMenu.lines[i].label = (char*)"not implemented yet - sorry!";
-                break;
-            }
-        }
+        transition(st, Transition::CHECKER_IN_OUT, HIGH_SCORES, 1500);
     } else if (btn == MainMenu_QuitButton) {
         return false;
     }
@@ -1099,6 +1207,19 @@ void renderTitle(Renderer *r, GameState *st) {
 }
 
 void gameOver(GameState *st) {
+    st->newHighScore = -1;
+    st->highScoreNameCursor = 0;
+    for (int i = 0; i < HIGH_SCORE_LIST_LENGTH; i++) {
+        if (st->highScores[i].score < st->inRound.score) {
+            for (int j = HIGH_SCORE_LIST_LENGTH-1; j > i; j--) {
+                st->highScores[j] = st->highScores[j-1];
+            }
+            st->highScores[i].score = st->inRound.score;
+            st->newHighScore = i;
+            transition(st, Transition::ROWS_ACROSS, HIGH_SCORES, 1500);
+            return;
+        }
+    }
     transition(st, Transition::ROWS_ACROSS, GAME_OVER, 1500);
 }
 
@@ -1227,6 +1348,7 @@ bool updateInRound(GameState *st, InputData in) {
                     return true;
                 }
             } else if (e.key == st->settings.controls.reset) {
+                replayData.seed = rand();
                 transitionStartRound(st);
                 return true;
             } else if (e.key == st->settings.controls.save) {
@@ -1323,11 +1445,7 @@ bool updateInRound(GameState *st, InputData in) {
         }
     }
 
-    for (int i = 0; i < FLASH_MESSAGE_COUNT; i++) {
-        FlashMessage *m = &st->inRound.messages[i];
-        if (!m->active) continue;
-        m->active = (m->lifetime -= in.dt) > 0;
-    }
+    updateFlashMessages(st, in);
     return true;
 }
 
@@ -1392,20 +1510,7 @@ void renderInRound(Renderer *r, GameState *st) {
     renderBoard(r, st);
     renderScore(r, st);
     renderQueue(r, st);
-
-    Vec2 messageBase = vec2(app->width/2, app->height*0.7);
-    Vec2 diff = vec2(0, -scale()*ubuntu_m32.lineHeight*2.0f);
-    for (int i = 0; i < FLASH_MESSAGE_COUNT; i++) {
-        FlashMessage *m = &st->inRound.messages[i];
-        if (!m->active) continue;
-        Vec2 pos = m->pos;
-        if (pos.x == 0 && pos.y == 0)
-            pos = add(messageBase, scaled(diff, i));
-        DrawOpts2d opts = {};
-        opts.tint.a = 3*m->lifetime / m->totalLifetime;
-        opts.tint.a *= opts.tint.a;
-        drawTextCentered(r, &ubuntu_m32, pos.x, pos.y, m->text, opts);
-    }
+    renderFlashMessages(r, st);
 
     renderToScreen(r);
 
@@ -1430,11 +1535,42 @@ void renderInRound(Renderer *r, GameState *st) {
     }
 }
 
-bool updateGameOver(GameState *st, InputData in) {
-    if (keyState(&in, st->settings.controls.reset).down)
-        transitionStartRound(st);
-    else if (keyState(&in, SDLK_i).down)
+bool updateHighScores(GameState *st, InputData in) {
+    updateFlashMessages(st, in);
+    if (st->newHighScore != -1) {
+        char *name = &st->highScores[st->newHighScore].name[0];
+        for (int i = 0; i < in.numKeyEvents; i++) {
+            KeyEvent e = keyEvent(&in, i);
+            if (!e.state.down) continue;
+            if (e.key >= SDLK_SPACE && e.key <= SDLK_z && st->highScoreNameCursor < sizeof(st->highScores[i].name)-1) {
+                name[st->highScoreNameCursor++] = e.key; 
+                name[st->highScoreNameCursor] = '\0'; 
+            } else if (e.key == SDLK_BACKSPACE && st->highScoreNameCursor) {
+                name[--st->highScoreNameCursor] = '\0';
+            } else if (e.key == SDLK_RETURN && st->highScoreNameCursor) {
+                saveHighScores(st, HIGHSCORES_FILE);
+                st->newHighScore = -1;
+            }
+        }
+    } else if (keyState(&in, SDLK_ESCAPE).down) {
+        transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
+        return true;
+    } else if (keyState(&in, SDLK_i).down && replayData.len) {
         saveReplay(st);
+        return true;
+    }
+    return true;
+}
+
+bool updateGameOver(GameState *st, InputData in) {
+    updateFlashMessages(st, in);
+    if (keyState(&in, st->settings.controls.reset).down) {
+        replayData.seed = rand();
+        transitionStartRound(st);
+    } else if (keyState(&in, SDLK_i).down)
+        saveReplay(st);
+    else if (keyState(&in, SDLK_ESCAPE).down)
+        transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
     return true;
 }
 
@@ -1616,6 +1752,8 @@ bool updateScene(GameState *st, InputData in, Scene s) {
         return updateGameOver(st, in);
     case REPLAY_FINISHED:
         return updateReplayFinished(st, in);
+    case HIGH_SCORES:
+        return updateHighScores(st, in);
     }
     assert(false);
     return false;
@@ -1657,6 +1795,9 @@ void renderScene(Renderer *r, GameState *st, Scene s) {
         break;
     case REPLAY_FINISHED:
         renderReplayFinished(r, st);
+        break;
+    case HIGH_SCORES:
+        renderHighScores(r, st);
         break;
     }
 }

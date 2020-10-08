@@ -17,6 +17,7 @@ enum Scene {
     OPTIONS,
     GAME_OVER,
     REPLAY_FINISHED,
+    HIGH_SCORES,
 };
 
 struct Transition {
@@ -121,7 +122,7 @@ bool compileExtraShaders(Renderer *r);
 #define MAX_BLOCKS (2*BOARD_HEIGHT*BOARD_WIDTH)
 
 struct InRoundState {
-    int score;
+    uint32_t score;
     float droptick;
 
     int stored;
@@ -166,13 +167,20 @@ struct RewindBuffer {
     int rwFactor = 2;
 };
 
+struct HighScore {
+    char name[16] = {};
+    uint32_t score = 0;
+};
+
+#define HIGH_SCORE_LIST_LENGTH 10
+
 struct GameState {
     Scene scenes[128];
     int currentScene;
 
     Settings settings;
 
-    int hiscore;
+    HighScore highScores[HIGH_SCORE_LIST_LENGTH] = {};
 
     float fps;
 
@@ -194,6 +202,9 @@ struct GameState {
     MenuContext options;
     MenuContext controlsMenu;
     MenuContext settingsMenu;
+
+    int newHighScore = -1;
+    int highScoreNameCursor = 0;
 };
 
 bool startGame(GameState *, Renderer *, App *);
