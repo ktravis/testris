@@ -98,16 +98,6 @@ void drawText(Renderer *r, FontAtlas *font, float x, float y, const char *text, 
     float xoff = 0;
     float yoff = 0;
     int vert_count = strlen(text) * 6;
-    Mesh full_mesh;
-    bool allocated = false;
-    if (opts.meshBuffer.data) {
-        full_mesh.data = opts.meshBuffer.data;
-        assert(opts.meshBuffer.count >= vert_count);
-    } else {
-        full_mesh.data = (VertexData *)malloc(sizeof(VertexData) * vert_count);
-        allocated = true;
-    }
-    full_mesh.count = 0;
 
     while (*text) {
         unsigned char u = *text;
@@ -120,20 +110,17 @@ void drawText(Renderer *r, FontAtlas *font, float x, float y, const char *text, 
             stbtt_aligned_quad q;
             stbtt_GetBakedQuad(font->cdata, 512,512, u-32, &xadv, &yadv, &q, 1);//1=opengl & d3d10+,0=d3d9
 
-            Mesh m = texturedQuadMesh(&full_mesh.data[full_mesh.count], rect(xoff+q.x0, yoff+q.y0, xoff+q.x1, yoff+q.y1), rect(q.s0, q.t0, q.s1, q.t1));
-            full_mesh.count += m.count;
+            if (u != ' ' && u != '\t') {
+                VertexData data[6];
+                Mesh m = texturedQuadMesh(data, rect(xoff+q.x0, yoff+q.y0, xoff+q.x1, yoff+q.y1), rect(q.s0, q.t0, q.s1, q.t1));
+                drawMesh(r, &m, v, font->tex, opts);
+            }
 
             xoff += xadv;
             yoff += yadv;
         }
         ++text;
     }
-    for (int i = 0; i < full_mesh.count; i++) {
-        full_mesh.data[i].y -= yoff;
-    }
-
-    drawMesh(r, &full_mesh, v, font->tex, opts);
-    if (allocated) free(full_mesh.data);
 }
 
 void drawTextf(Renderer *r, FontAtlas *font, float x, float y, DrawOpts2d opts, const char *fmt...) {

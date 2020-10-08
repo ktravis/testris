@@ -14,6 +14,7 @@ void initRenderer(Renderer *r, uint32_t w, uint32_t h) {
 
     glGenBuffers(1, &r->vbo);
     glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(VertexData) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
 
     glGenTextures(1, &r->defaultTexture);
     //glActiveTexture(GL_TEXTURE0);
@@ -176,9 +177,10 @@ GLenum glDrawMode(DrawMode m) {
 
 // TODO: group by common mesh / options and draw in batches
 void draw(Renderer *r, DrawCall call) {
-    // TODO(ktravis): mesh should have its own vbo that doesn't need to be
-    // reloaded every time?
-    glBufferData(GL_ARRAY_BUFFER, call.mesh->count*sizeof(VertexData), call.mesh->data, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, call.mesh->count*sizeof(VertexData), call.mesh->data);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     // TODO(ktravis): useTexture use in more places?
     useTexture(r, call.texture);
     translate(call.uniforms.model, vec3(r->offset));

@@ -877,7 +877,7 @@ void renderScore(Renderer *r, GameState *st) {
     float h = scale()*ubuntu_m32.lineHeight;
     // TODO(ktravis): right-align text?
     float left = ul.x - scale()*92.0f;
-    drawTextf(r, &ubuntu_m32, left, ul.y + scale()*1.75f*h, opts, (const char*)"score:\n%04d", st->inRound.score, opts);
+    drawTextf(r, &ubuntu_m32, left, ul.y + h*0.75f, opts, (const char*)"score:\n%04d", st->inRound.score, opts);
 
     drawText(r, &ubuntu_m32, left, ul.y + border(st).h - scale()*(h+5.0f), "hi:", opts);
     char buf[5];
@@ -1085,14 +1085,10 @@ void renderTitle(Renderer *r, GameState *st) {
     glUniform2fv(glGetUniformLocation(titleBGShader.handle, "dim"), 1, (GLfloat*)&dim);
     drawRect(r, rect(0, 0, app->width, app->height), bgOpts);
 
-    const int N = 6 * sizeof(title)/sizeof(char);
-    VertexData vbuf[N];
-
     DrawOpts2d opts = scaleOpts();
-    opts.meshBuffer = Mesh{.count = N, .data = vbuf};
     opts.shader = &titleShader;
 
-    drawTextCentered(r, &mono_m18, app->width/2, 0.35f*app->height, title, opts);
+    drawTextCentered(r, &mono_m18, app->width/2, app->height/2-300*scale(), title, opts);
     //Vec2 dim = getTextDimensions(title, &mono_m18);
     //opts.origin.x = dim.x / 2;
     //opts.origin.y = -dim.y / 2;
@@ -1498,11 +1494,6 @@ bool updateOptions(GameState *st, InputData in) {
 }
 
 void renderOptions(Renderer *r, GameState *st) {
-    VertexData vbuf[6*256];
-    Mesh meshBuffer;
-    meshBuffer.data = vbuf;
-    meshBuffer.count = sizeof(vbuf)/sizeof(VertexData);
-
     // I'd rather do this in some helper function
     st->options.topCenter = vec2(app->width/2, 200*scale());
     st->controlsMenu.topCenter = st->options.topCenter;
@@ -1510,9 +1501,7 @@ void renderOptions(Renderer *r, GameState *st) {
     st->options.scale = scaleOpts().scale;
 
     DrawOpts2d opts = scaleOpts();
-    opts.meshBuffer = meshBuffer;
     DrawOpts2d hotOpts = defaultHotOpts(st->inRound.elapsed);
-    hotOpts.meshBuffer = meshBuffer;
     scale(&hotOpts.scale, scale());
     drawMenu(r, &st->menus[st->currentMenu], hotOpts, opts);
 
