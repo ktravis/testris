@@ -99,7 +99,7 @@ struct Settings {
         SDL_Keycode save = SDLK_LEFTBRACKET;
         SDL_Keycode restore = SDLK_RIGHTBRACKET;
     } controls;
-    bool muted = false;
+    bool soundEffects = true;
     bool showGhost = true;
     bool screenShake = true;
     float renderScale = 1.0f;

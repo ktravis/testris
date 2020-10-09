@@ -310,7 +310,7 @@ void initOptionsMenu(GameState *st) {
     menu->alignWidth = 30;
     menu->topCenter = vec2(app->width/2, 200*scale());
     addMenuLine(menu, (char *)"[ settings ]");
-    addMenuLine(menu, (char *)"muted", &st->settings.muted);
+    addMenuLine(menu, (char *)"sounds effects", &st->settings.soundEffects);
     addMenuLine(menu, (char *)"ghost", &st->settings.showGhost);
     addMenuLine(menu, (char *)"screen shake", &st->settings.screenShake);
     addMenuLine(menu, (char *)"move delay (ms)", &st->settings.moveDelayMillis);
@@ -341,7 +341,7 @@ DEFINE_SERDE(Settings,
     KEY_FIELD(mute),
     KEY_FIELD(save),
     KEY_FIELD(restore),
-    BOOL_FIELD(muted),
+    BOOL_FIELD(soundEffects),
     BOOL_FIELD(showGhost),
     BOOL_FIELD(screenShake),
     INT_FIELD(moveDelayMillis),
@@ -554,6 +554,8 @@ bool startGame(GameState *st, Renderer *r, App *a) {
         }
         loadSettings(&st->settings, SETTINGS_FILE);
     }
+
+    setMuted(!st->settings.soundEffects);
 
     st->scenes[st->currentScene] = TITLE;
 
@@ -1377,7 +1379,12 @@ bool updateInRound(GameState *st, InputData in) {
         KeyEvent e = keyEvent(&in, i);
         if (e.state.down) {
             if (e.key == st->settings.controls.mute) {
-                toggleMute();
+                bool muted = toggleMute();
+                flashMessage(st, (const char*)(muted ? "muted" : "unmuted"));
+                st->settings.soundEffects = !muted;
+                if (!saveSettings(&st->settings, SETTINGS_FILE)) {
+                    log("settings save failed");
+                }
             }
 
             if (e.key == st->settings.controls.rotateCCW) {
@@ -1489,6 +1496,7 @@ bool updateInRound(GameState *st, InputData in) {
                 gameOver(st);
                 return true;
             }
+            playSound(sounds.menu);
         }
     }
     Vec2 ul = border(st).pos;
@@ -1674,6 +1682,7 @@ bool updateOptions(GameState *st, InputData in) {
         if (!saveSettings(&st->settings, SETTINGS_FILE)) {
             log("settings save failed");
         }
+        setMuted(!st->settings.soundEffects);
     }
     if (btn == OptionsMenu_ResumeButton) {
         if (!st->inRound.roundInProgress) transition(st, Transition::ROWS_ACROSS, TITLE, 1500);

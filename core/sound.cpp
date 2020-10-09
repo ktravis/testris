@@ -55,11 +55,16 @@ int32_t playSound(int32_t id, SoundProps props) {
     return p->handle;
 }
 
-bool toggleMute() {
-    static bool muted = false;
-    muted = !muted;
+static bool muted = false;
+
+bool setMuted(bool m) {
+    muted = m;
     globalSoundProps.volume = muted ? 0.0f : 1.0f;
     return muted;
+}
+
+bool toggleMute() {
+    return setMuted(!muted);
 }
 
 int32_t playSound(int32_t id) {

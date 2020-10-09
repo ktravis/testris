@@ -342,6 +342,7 @@ int32_t playSound(int32_t id);
 extern SoundProps globalSoundProps;
 extern SoundProps defaultSoundProps;
 
+bool setMuted(bool m);
 bool toggleMute();
 void mixAudioS16LE(uint8_t *dst, uint8_t *src, uint32_t len_bytes, SoundProps props);
 void audioCallback(void *user_data, uint8_t *stream, int32_t len);
