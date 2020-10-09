@@ -11,8 +11,8 @@ FontAtlas ubuntu_m32;
 uint8_t *mono_ttf_buffer;
 FontAtlas mono_m18;
 
-int32_t sound_ready;
-int32_t whooop;
+/* int32_t sound_ready; */
+/* int32_t whooop; */
 
 ShaderProgram titleShader;
 ShaderProgram titleBGShader;
@@ -201,6 +201,20 @@ hooray:
     return true;
 }
 
+struct {
+    uint32_t bloop;
+    uint32_t drop1;
+    uint32_t drop2;
+    uint32_t drop3;
+    uint32_t menu;
+    uint32_t smallExplosion;
+    uint32_t explosion;
+    uint32_t gameover;
+    uint32_t highscore;
+    uint32_t back;
+    uint32_t select;
+} sounds;
+
 DEFINE_BUTTON(MainMenu_StartGameButton);
 DEFINE_BUTTON(MainMenu_WatchReplayButton);
 DEFINE_BUTTON(MainMenu_OptionsButton);
@@ -210,6 +224,9 @@ DEFINE_BUTTON(MainMenu_QuitButton);
 void initTitleMenu(GameState *st) {
     MenuContext *menu = &st->titleMenu;
     menu->font = &ubuntu_m32;
+    menu->soundHover = sounds.menu;
+    menu->soundSelect = sounds.select;
+    menu->soundCancel = sounds.back;
     menu->lines = 0;
     menu->alignWidth = 24;
     menu->topCenter = vec2(app->width/2, app->height/2 + 140*scale());
@@ -238,6 +255,9 @@ DEFINE_BUTTON(OptionsMenu_ScaleDownButton);
 void initOptionsMenu(GameState *st) {
     MenuContext *menu = &st->options;
     menu->font = &mono_m18;
+    menu->soundHover = sounds.menu;
+    menu->soundSelect = sounds.select;
+    menu->soundCancel = sounds.back;
     menu->lines = 0;
     menu->alignWidth = 24;
     menu->topCenter = vec2(app->width/2, 200*scale());
@@ -254,6 +274,9 @@ void initOptionsMenu(GameState *st) {
 
     menu = &st->controlsMenu;
     menu->font = &mono_m18;
+    menu->soundHover = sounds.menu;
+    menu->soundSelect = sounds.select;
+    menu->soundCancel = sounds.back;
     menu->lines = 0;
     menu->alignWidth = 24;
     menu->topCenter = vec2(app->width/2, 200*scale());
@@ -280,6 +303,9 @@ void initOptionsMenu(GameState *st) {
 
     menu = &st->settingsMenu;
     menu->font = &mono_m18;
+    menu->soundHover = sounds.menu;
+    menu->soundSelect = sounds.select;
+    menu->soundCancel = sounds.back;
     menu->lines = 0;
     menu->alignWidth = 30;
     menu->topCenter = vec2(app->width/2, 200*scale());
@@ -487,8 +513,37 @@ bool startGame(GameState *st, Renderer *r, App *a) {
     loadFontAtlas(&mono_m18, mono_ttf_buffer, 18.0f);
     mono_m18.padding = 10.0f;
 
-    //sound_ready = loadAudioAndConvert("./assets/sounds/ready.wav");
-    //if (sound_ready == -1) { return false; }
+    {
+        sounds.bloop = loadAudioAndConvert("./assets/sounds/bloop.wav");
+        if (sounds.bloop == -1) return false;
+
+        sounds.drop1 = loadAudioAndConvert("./assets/sounds/drop1.wav");
+        if (sounds.drop1 == -1) return false;
+
+        sounds.drop2 = loadAudioAndConvert("./assets/sounds/drop2.wav");
+        if (sounds.drop2 == -1) return false;
+
+        sounds.drop3 = loadAudioAndConvert("./assets/sounds/drop3.wav");
+        if (sounds.drop3 == -1) return false;
+
+        sounds.menu = loadAudioAndConvert("./assets/sounds/menu.wav");
+        if (sounds.menu == -1) return false;
+
+        sounds.smallExplosion = loadAudioAndConvert("./assets/sounds/small-explosion.wav");
+        if (sounds.smallExplosion == -1) return false;
+
+        sounds.explosion = loadAudioAndConvert("./assets/sounds/explosion.wav");
+        if (sounds.explosion == -1) return false;
+
+        sounds.gameover = loadAudioAndConvert("./assets/sounds/gameover.wav");
+        if (sounds.gameover == -1) return false;
+
+        sounds.back = loadAudioAndConvert("./assets/sounds/back.wav");
+        if (sounds.back == -1) return false;
+
+        sounds.select = loadAudioAndConvert("./assets/sounds/select.wav");
+        if (sounds.select == -1) return false;
+    }
 
     loadHighScores(st, HIGHSCORES_FILE);
 
@@ -504,8 +559,8 @@ bool startGame(GameState *st, Renderer *r, App *a) {
 
     //int32_t sound_hiscore = loadAudioAndConvert("assets/sounds/hiscore.wav");
     //if (sound_hiscore == -1) { return NULL; }
-    whooop = loadAudioAndConvert("./assets/sounds/whooop.wav");
-    if (whooop == -1) return false;
+    /* whooop = loadAudioAndConvert("./assets/sounds/whooop.wav"); */
+    /* if (whooop == -1) return false; */
 
     
     initTitleMenu(st);
@@ -613,6 +668,7 @@ struct {
 } replayData;
 
 void startRound(GameState *st) {
+    /* playSound(sound_ready); */
     st->rw.cursor = 0;
     st->rw.size = 0;
     st->inRound.score = 0;
@@ -676,9 +732,7 @@ void tryClearingLine(GameState *st, int line) {
     Vec2 ul = border(st).pos;
     Cell *row = st->inRound.board[line];
     for (int x = 0; x < BOARD_WIDTH; x++) {
-        if (!row[x].full) {
-            debug("U WUT");
-        }
+        assert(row[x].full);
         row[x].full = false;
         Block *b = &st->inRound.blocks[row[x].blockIndex];
 
@@ -700,6 +754,7 @@ void tryClearingLine(GameState *st, int line) {
 }
 
 void clearLines(GameState *st) {
+    int cleared = 0;
     for (int y = 0; y < BOARD_HEIGHT; y++) {
         bool all = true;
         for (int x = 0; x < BOARD_WIDTH; x++) {
@@ -712,8 +767,14 @@ void clearLines(GameState *st) {
             continue;
         }
         tryClearingLine(st, y);
+        cleared++;
         st->inRound.score++;
         st->inRound.shaking += st->inRound.shaking > 1 ? 250.0f : 600.0f;
+    }
+    if (cleared > 2) {
+        playSound(sounds.explosion);
+    } else if (cleared > 0) {
+        playSound(sounds.smallExplosion);
     }
 }
 
@@ -1216,10 +1277,12 @@ void gameOver(GameState *st) {
             }
             st->highScores[i].score = st->inRound.score;
             st->newHighScore = i;
+            playSound(sounds.bloop);
             transition(st, Transition::ROWS_ACROSS, HIGH_SCORES, 1500);
             return;
         }
     }
+    playSound(sounds.gameover);
     transition(st, Transition::ROWS_ACROSS, GAME_OVER, 1500);
 }
 
@@ -1347,6 +1410,10 @@ bool updateInRound(GameState *st, InputData in) {
                     gameOver(st);
                     return true;
                 }
+                uint32_t drops[] = {
+                    sounds.drop1, sounds.drop2, sounds.drop3
+                };
+                playSound(drops[rand()%(sizeof(drops)/sizeof(drops[0]))]);
             } else if (e.key == st->settings.controls.reset) {
                 replayData.seed = rand();
                 transitionStartRound(st);
@@ -1548,14 +1615,17 @@ bool updateHighScores(GameState *st, InputData in) {
             } else if (e.key == SDLK_BACKSPACE && st->highScoreNameCursor) {
                 name[--st->highScoreNameCursor] = '\0';
             } else if (e.key == SDLK_RETURN && st->highScoreNameCursor) {
+                playSound(sounds.select);
                 saveHighScores(st, HIGHSCORES_FILE);
                 st->newHighScore = -1;
             }
         }
     } else if (keyState(&in, SDLK_ESCAPE).down) {
+        playSound(sounds.back);
         transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
         return true;
     } else if (keyState(&in, SDLK_i).down && replayData.len) {
+        playSound(sounds.select);
         saveReplay(st);
         return true;
     }
@@ -1577,6 +1647,7 @@ bool updateGameOver(GameState *st, InputData in) {
 bool updateOptions(GameState *st, InputData in) {
     if (st->menus[st->currentMenu].interaction != KEYBINDING) {
         if (keyState(&in, SDLK_ESCAPE).down) {
+            playSound(sounds.back);
             if (st->currentMenu == 0) {
                 if (!st->inRound.roundInProgress) transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
                 else popScene(st);

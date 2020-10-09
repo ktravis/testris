@@ -108,6 +108,7 @@ int prevHotLine(MenuContext *ctx) {
     for (int i = 1; i < n; i++) {
         int j = (ctx->hotIndex-i+n) % n;
         if (ctx->lines[j].type != HEADING) {
+            if (ctx->soundHover != -1) playSound(ctx->soundHover);
             ctx->hotIndex = j;
             break;
         }
@@ -121,6 +122,7 @@ int nextHotLine(MenuContext *ctx) {
     for (int i = 1; i < n; i++) {
         int j = (ctx->hotIndex+i) % n;
         if (ctx->lines[j].type != HEADING) {
+            if (ctx->soundHover != -1) playSound(ctx->soundHover);
             ctx->hotIndex = j;
             break;
         }
@@ -129,6 +131,7 @@ int nextHotLine(MenuContext *ctx) {
 }
 
 MenuButton *menuInteract(MenuContext *ctx, MenuLine *item) {
+    if (ctx->soundSelect != -1) playSound(ctx->soundSelect);
     ctx->interaction = NONE;
     if (item) {
         switch (item->type) {
@@ -161,6 +164,7 @@ DrawOpts2d defaultHotOpts(float t) {
 
 MenuButton *updateMenu(MenuContext *ctx, InputData in) {
     if (ctx->interaction == NONE && in.mouseMoved) {
+        int lastHotIndex = ctx->hotIndex;
         ctx->hotIndex = -1;
         Vec2 pos = ctx->topCenter;
         for (int i = 0; i < array_len(ctx->lines); i++) {
@@ -171,6 +175,9 @@ MenuButton *updateMenu(MenuContext *ctx, InputData in) {
             }
             Rect dim = menuLineDimensions(ctx, *item, pos, false);
             if (contains(dim, in.mouse)) {
+                if (i != lastHotIndex) {
+                    if (ctx->soundHover != -1) playSound(ctx->soundHover);
+                }
                 ctx->hotIndex = i;
                 break;
             }
@@ -194,6 +201,9 @@ MenuButton *updateMenu(MenuContext *ctx, InputData in) {
                 assert(item);
                 if (e.key != SDLK_ESCAPE) {
                     *item->key.current = e.key;
+                    if (ctx->soundHover != -1) playSound(ctx->soundHover);
+                } else {
+                    if (ctx->soundCancel != -1) playSound(ctx->soundCancel);
                 }
                 ctx->interaction = NONE;
                 item->key.waiting = false;
@@ -205,9 +215,11 @@ MenuButton *updateMenu(MenuContext *ctx, InputData in) {
         if (item && item->type == INT_VALUE) {
             switch (e.key) {
             case SDLK_LEFT:
+                if (ctx->soundHover != -1) playSound(ctx->soundHover);
                 *item->i = ((uint32_t)(*item->i) - 1) % UINT32_MAX;
                 break;
             case SDLK_RIGHT:
+                if (ctx->soundHover != -1) playSound(ctx->soundHover);
                 *item->i = ((uint32_t)(*item->i) + 1) % UINT32_MAX;
                 break;
             }

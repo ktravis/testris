@@ -11,8 +11,8 @@ static Sound loaded_sounds[MAX_LOADED_SOUNDS];
 #define MAX_PLAYING_SOUNDS 16
 static Playing playing_sounds[MAX_PLAYING_SOUNDS];
 
-SoundProps globalSoundProps = {.volume = 0.4f};
-SoundProps defaultSoundProps = {.volume = 0.4f};
+SoundProps globalSoundProps = {.volume = 1.0f};
+SoundProps defaultSoundProps = {.volume = 1.0f};
 
 void stopAllSounds() {
     for (int i = 0; i < MAX_PLAYING_SOUNDS; i++) {
@@ -70,28 +70,7 @@ void mixAudioS16LE(uint8_t *dst, uint8_t *src, uint32_t len_bytes, SoundProps pr
     if (globalSoundProps.volume == 0.0f || props.volume == 0.0f) {
         return;
     }
-    int16_t sample_a, sample_b;
-    int dst_sample;
-    const int max_audioval = ((1 << (16 - 1)) - 1);
-    const int min_audioval = -(1 << (16 - 1));
-    uint32_t len_samples = len_bytes / 2;
-
-    while (len_samples--) {
-        sample_a = ((src[1]) << 8 | src[0]);
-        sample_a *= (globalSoundProps.volume * props.volume * (SDL_MIX_MAXVOLUME / 2))/SDL_MIX_MAXVOLUME;
-        sample_b = ((dst[1]) << 8 | dst[0]);
-        src += 2;
-        dst_sample = sample_a + sample_b;
-        if (dst_sample > max_audioval) {
-            dst_sample = max_audioval;
-        } else if (dst_sample < min_audioval) {
-            dst_sample = min_audioval;
-        }
-        dst[0] = dst_sample & 0xFF;
-        dst_sample >>= 8;
-        dst[1] = dst_sample & 0xFF;
-        dst += 2;
-    }
+    SDL_MixAudio(dst, src, len_bytes, props.volume * globalSoundProps.volume * SDL_MIX_MAXVOLUME);
 }
 
 void audioCallback(void *user_data, uint8_t *stream, int32_t len) {

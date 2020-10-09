@@ -649,6 +649,9 @@ struct MenuContext {
     MenuLine *lines;
     int hotIndex;
     InteractionType interaction;
+    int32_t soundHover = -1;
+    int32_t soundSelect = -1;
+    int32_t soundCancel = -1;
 
     FontAtlas *font;
     int alignWidth = -1;
