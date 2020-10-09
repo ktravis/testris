@@ -12,7 +12,6 @@ uint8_t *mono_ttf_buffer;
 FontAtlas mono_m18;
 
 /* int32_t sound_ready; */
-/* int32_t whooop; */
 
 ShaderProgram titleShader;
 ShaderProgram titleBGShader;
@@ -202,17 +201,18 @@ hooray:
 }
 
 struct {
-    uint32_t bloop;
-    uint32_t drop1;
-    uint32_t drop2;
-    uint32_t drop3;
-    uint32_t menu;
-    uint32_t smallExplosion;
-    uint32_t explosion;
-    uint32_t gameover;
-    uint32_t highscore;
-    uint32_t back;
-    uint32_t select;
+    int32_t bloop;
+    int32_t drop1;
+    int32_t drop2;
+    int32_t drop3;
+    int32_t menu;
+    int32_t smallExplosion;
+    int32_t explosion;
+    int32_t gameover;
+    int32_t highscore;
+    int32_t back;
+    int32_t select;
+    int32_t whooop;
 } sounds;
 
 DEFINE_BUTTON(MainMenu_StartGameButton);
@@ -543,6 +543,9 @@ bool startGame(GameState *st, Renderer *r, App *a) {
 
         sounds.select = loadAudioAndConvert("./assets/sounds/select.wav");
         if (sounds.select == -1) return false;
+
+        sounds.whooop = loadAudioAndConvert("./assets/sounds/whooop.wav");
+        if (sounds.whooop == -1) return false;
     }
 
     loadHighScores(st, HIGHSCORES_FILE);
@@ -561,8 +564,6 @@ bool startGame(GameState *st, Renderer *r, App *a) {
 
     //int32_t sound_hiscore = loadAudioAndConvert("assets/sounds/hiscore.wav");
     //if (sound_hiscore == -1) { return NULL; }
-    /* whooop = loadAudioAndConvert("./assets/sounds/whooop.wav"); */
-    /* if (whooop == -1) return false; */
 
     
     initTitleMenu(st);
@@ -1355,6 +1356,7 @@ bool updateInRound(GameState *st, InputData in) {
         st->rw.size -= st->rw.rwFactor;
         if (st->rw.size < 0) st->rw.size = 0;
         if (keyState(&in, st->settings.controls.rewind).up || st->rw.size == 0) {
+            stopSound(sounds.whooop);
             st->rw.rewinding = false;
             for (int i = 0; i < sizeof(st->inRound.held); i++)
                 ((char*)(&st->inRound.held))[i] = 0;
@@ -1369,7 +1371,7 @@ bool updateInRound(GameState *st, InputData in) {
         else st->rw.cursor = (st->rw.cursor+1) % SANDS_OF_TIME;
         if (st->rw.size >= RW_THRESHOLD && keyState(&in, st->settings.controls.rewind).down) {
             st->rw.rewinding = true;
-            /* playSound(whooop); */
+            playSound(sounds.whooop);
         }
     }
 
@@ -1417,7 +1419,7 @@ bool updateInRound(GameState *st, InputData in) {
                     gameOver(st);
                     return true;
                 }
-                uint32_t drops[] = {
+                int32_t drops[] = {
                     sounds.drop1, sounds.drop2, sounds.drop3
                 };
                 playSound(drops[rand()%(sizeof(drops)/sizeof(drops[0]))]);
@@ -1695,7 +1697,7 @@ bool updateOptions(GameState *st, InputData in) {
     } else if (btn == OptionsMenu_SettingsButton) {
         st->currentMenu = 2;
     } else if (btn == OptionsMenu_MainMenuButton) {
-        if (st->inRound.roundInProgress) popScene(st);
+        if (st->currentScene) popScene(st);
         transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
         return true;
     } else if (btn == OptionsMenu_QuitButton) {
