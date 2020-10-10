@@ -101,6 +101,7 @@ struct Settings {
         SDL_Keycode restore = SDLK_RIGHTBRACKET;
     } controls;
     bool soundEffects = true;
+    bool rewindSound = true;
     bool showGhost = true;
     bool screenShake = true;
     float renderScale = 1.0f;
@@ -164,7 +165,6 @@ struct RewindBuffer {
     int cursor = 0;
     int size = 0;
     InRoundState savedStates[SANDS_OF_TIME];
-    /* InputData savedInputs[SANDS_OF_TIME]; */
     bool rewinding = false;
     int rewindCount = 0;
     int rwFactor = 2;
@@ -198,7 +198,6 @@ struct GameState {
     // IN_ROUND
     InRoundState inRound = {};
     RewindBuffer rw = {};
-
 
     // OPTIONS
     int currentMenu = 0;

@@ -20,6 +20,17 @@ void stopAllSounds() {
     }
 }
 
+bool stopSoundByID(int32_t id) {
+    bool was_playing = false;
+    for (int i = 0; i < MAX_PLAYING_SOUNDS; i++) {
+        if (playing_sounds[i].soundID == id) {
+            was_playing = was_playing || playing_sounds[i].active;
+            playing_sounds[i].active = false;
+        }
+    }
+    return was_playing;
+}
+
 bool stopSound(int32_t handle) {
     bool was_playing = false;
     for (int i = 0; i < MAX_PLAYING_SOUNDS; i++) {
@@ -48,6 +59,7 @@ int32_t playSound(int32_t id, SoundProps props) {
     // TODO: lock
 
     p->handle = next_handle++;
+    p->soundID = id;
     p->active = true;
     p->s = &loaded_sounds[id];
     p->cur = 0;

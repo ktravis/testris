@@ -328,6 +328,7 @@ struct SoundProps {
 
 struct Playing {
     int32_t handle;
+    int32_t soundID;
     bool active;
     Sound *s;
     uint32_t cur;
@@ -335,6 +336,7 @@ struct Playing {
 };
 
 void stopAllSounds();
+bool stopSoundByID(int32_t id);
 bool stopSound(int32_t handle);
 int32_t playSound(int32_t id, SoundProps props);
 int32_t playSound(int32_t id);

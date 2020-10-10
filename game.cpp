@@ -313,6 +313,7 @@ void initOptionsMenu(GameState *st) {
     menu->topCenter = vec2(app->width/2, 200*scale());
     addMenuLine(menu, (char *)"[ settings ]");
     addMenuLine(menu, (char *)"sounds effects", &st->settings.soundEffects);
+    addMenuLine(menu, (char *)"rewind sound", &st->settings.rewindSound);
     addMenuLine(menu, (char *)"ghost", &st->settings.showGhost);
     addMenuLine(menu, (char *)"screen shake", &st->settings.screenShake);
     addMenuLine(menu, (char *)"move delay (ms)", &st->settings.moveDelayMillis);
@@ -344,6 +345,7 @@ DEFINE_SERDE(Settings,
     KEY_FIELD(save),
     KEY_FIELD(restore),
     BOOL_FIELD(soundEffects),
+    BOOL_FIELD(rewindSound),
     BOOL_FIELD(showGhost),
     BOOL_FIELD(screenShake),
     INT_FIELD(moveDelayMillis),
@@ -1383,7 +1385,7 @@ bool updateInRound(GameState *st, InputData in) {
         st->rw.size -= st->rw.rwFactor;
         if (st->rw.size < 0) st->rw.size = 0;
         if (!rwHeld || st->rw.size == 0) {
-            stopSound(sounds.whooop);
+            stopSoundByID(sounds.whooop);
             st->rw.rewinding = false;
             for (int i = 0; i < sizeof(st->inRound.held); i++)
                 ((char*)(&st->inRound.held))[i] = 0;
@@ -1397,7 +1399,7 @@ bool updateInRound(GameState *st, InputData in) {
         if (rwHeld && st->rw.size >= RW_THRESHOLD) {
             st->rw.rewinding = true;
             st->rw.rewindCount++;
-            playSound(sounds.whooop);
+            if (st->settings.rewindSound) playSound(sounds.whooop);
         }
     }
 
