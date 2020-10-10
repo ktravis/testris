@@ -11,8 +11,8 @@ static Sound loaded_sounds[MAX_LOADED_SOUNDS];
 #define MAX_PLAYING_SOUNDS 16
 static Playing playing_sounds[MAX_PLAYING_SOUNDS];
 
-SoundProps globalSoundProps = {.volume = 1.0f};
-SoundProps defaultSoundProps = {.volume = 1.0f};
+SoundProps globalSoundProps = {.volume = 0.6f};
+SoundProps defaultSoundProps = {.volume = 0.6f};
 
 void stopAllSounds() {
     for (int i = 0; i < MAX_PLAYING_SOUNDS; i++) {
@@ -87,7 +87,7 @@ void mixAudioS16LE(uint8_t *dst, uint8_t *src, uint32_t len_bytes, SoundProps pr
     if (globalSoundProps.volume == 0.0f || props.volume == 0.0f) {
         return;
     }
-    SDL_MixAudio(dst, src, len_bytes, props.volume * globalSoundProps.volume * SDL_MIX_MAXVOLUME);
+    SDL_MixAudio(dst, src, len_bytes, props.volume * globalSoundProps.volume * SDL_MIX_MAXVOLUME/5);
 }
 
 void audioCallback(void *user_data, uint8_t *stream, int32_t len) {
