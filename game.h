@@ -18,6 +18,7 @@ enum Scene {
     GAME_OVER,
     REPLAY_FINISHED,
     HIGH_SCORES,
+    CREDITS,
 };
 
 struct Transition {

@@ -9,7 +9,7 @@ I made a custom engine on SDL2 for mostly 2d rendering (though 3d is supported, 
 - general mesh rendering
 - shader pipeline
 - very simple serde
-- sound effects (native working, not currently in use)
+- sound effects
 - sprite sheets/simple animation (working, not currently in use)
 
 Features:
@@ -22,11 +22,6 @@ TODO:
 - set replay filename (native)
 - replay file safety checks
 - replay format compression
-- add sound effects
-- scale difficulty when rewinding
-- score combos
-- install requirements
-- make background scale redness with tower height
 
 Known issues:
 - some rotational issues with tight spaces
@@ -35,14 +30,15 @@ Known issues:
 
 ## uses
 
-- [stb_image](https//github.com/nothings/stb)
-- [stb_truetype](https//github.com/nothings/stb)
+- [stb_image](https://github.com/nothings/stb)
+- [stb_truetype](https://github.com/nothings/stb)
 - shader based on https://www.shadertoy.com/view/Ms3XWH
 - DejaVuSansMono and Ubuntu fonts
+- SDL2 / SDL_mixer
 
 ## requirements (native)
 
-C++ (11) compiler 
+C++ (11) compiler, and:
 
 ### arch
 
@@ -53,8 +49,7 @@ pacman -Sy glew mesa sdl2
 ### debian
 
 ```shell
-apt install libsdl2-dev
-apt install libglew-dev
+apt install libsdl2-dev libglew-dev
 ```
 
 ### fedora
@@ -74,7 +69,7 @@ make run
 
 ## build for web
 
-depends on emscripten/emsdk
+depends on [emscripten/emsdk](https://github.com/emscripten/emsdk)
 
 ```shell
 make wasm

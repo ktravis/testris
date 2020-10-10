@@ -221,6 +221,7 @@ DEFINE_BUTTON(MainMenu_StartGameButton);
 DEFINE_BUTTON(MainMenu_WatchReplayButton);
 DEFINE_BUTTON(MainMenu_OptionsButton);
 DEFINE_BUTTON(MainMenu_HighScoresButton);
+DEFINE_BUTTON(MainMenu_CreditsButton);
 DEFINE_BUTTON(MainMenu_QuitButton);
 
 void initTitleMenu(GameState *st) {
@@ -236,6 +237,7 @@ void initTitleMenu(GameState *st) {
     addMenuLine(menu, (char *)"watch a replay", MainMenu_WatchReplayButton);
     addMenuLine(menu, (char *)"options", MainMenu_OptionsButton);
     addMenuLine(menu, (char *)"high scores", MainMenu_HighScoresButton);
+    addMenuLine(menu, (char *)"credits", MainMenu_CreditsButton);
 #ifndef __EMSCRIPTEN__
     addMenuLine(menu, (char *)"quit", MainMenu_QuitButton);
 #endif
@@ -1021,6 +1023,23 @@ void renderFlashMessages(Renderer *r, GameState *st) {
     }
 }
 
+void renderCredits(Renderer *r, GameState *st) {
+    DrawOpts2d opts = scaleOpts();
+
+    drawTextCentered(r, &ubuntu_m32, app->width/2, app->height*0.1f, "credits", opts);
+    const char *lines[] = {
+        "stb_image & stb_truetype: github.com/nothings/stb",
+        "shader based on www.shadertoy.com/view/Ms3XWH",
+        "SDL2, SDL_mixer",
+        "emscripten: github.com/emscripten/emsdk",
+        "DejaVuSansMono and Ubuntu fonts"
+    };
+    for (int i = 0; i < sizeof(lines)/sizeof(lines[0]); i++) {
+        drawTextCentered(r, &mono_m18, app->width/2, app->height*(0.2f+0.05f*i), lines[i], opts);
+    }
+    drawTextCentered(r, &ubuntu_m16, app->width/2, app->height*0.3+scale()*400.0f, "escape to return", opts);
+}
+
 void renderHighScores(Renderer *r, GameState *st) {
     DrawOpts2d opts = scaleOpts();
 
@@ -1253,6 +1272,8 @@ bool updateTitle(GameState *st, InputData in) {
         transition(st, Transition::CHECKER_IN_OUT, OPTIONS, 1500);
     } else if (btn == MainMenu_HighScoresButton) {
         transition(st, Transition::CHECKER_IN_OUT, HIGH_SCORES, 1500);
+    } else if (btn == MainMenu_CreditsButton) {
+        transition(st, Transition::CHECKER_IN_OUT, CREDITS, 1500);
     } else if (btn == MainMenu_QuitButton) {
         return false;
     }
@@ -1643,6 +1664,15 @@ void renderInRound(Renderer *r, GameState *st) {
     }
 }
 
+bool updateCredits(GameState *st, InputData in) {
+    if (keyState(&in, SDLK_ESCAPE).down) {
+        playSound(sounds.back);
+        transition(st, Transition::ROWS_ACROSS, TITLE, 1500);
+        return true;
+    }
+    return true;
+}
+
 bool updateHighScores(GameState *st, InputData in) {
     updateFlashMessages(st, in);
     if (st->newHighScore != -1) {
@@ -1867,6 +1897,8 @@ bool updateScene(GameState *st, InputData in, Scene s) {
         return updateReplayFinished(st, in);
     case HIGH_SCORES:
         return updateHighScores(st, in);
+    case CREDITS:
+        return updateCredits(st, in);
     }
     assert(false);
     return false;
@@ -1911,6 +1943,9 @@ void renderScene(Renderer *r, GameState *st, Scene s) {
         break;
     case HIGH_SCORES:
         renderHighScores(r, st);
+        break;
+    case CREDITS:
+        renderCredits(r, st);
         break;
     }
 }
