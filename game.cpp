@@ -5,6 +5,8 @@
 #define SETTINGS_FILE "testris.conf"
 #define HIGHSCORES_FILE "testris.highscores"
 
+#define MIN_TICK 100
+
 uint8_t *ubuntu_ttf_buffer;
 FontAtlas ubuntu_m16;
 FontAtlas ubuntu_m32;
@@ -506,7 +508,7 @@ bool startGame(GameState *st, Renderer *r, App *a) {
     ubuntu_m32.padding = 10.0f;
     loadFontAtlas(&ubuntu_m16, ubuntu_ttf_buffer, 16.0f);
     ubuntu_m16.padding = 10.0f;
-    
+
     if (!(mono_ttf_buffer = readFile("./assets/fonts/DejaVuSansMono-Bold.ttf"))) {
         return false;
     }
@@ -609,7 +611,7 @@ bool spawnFaller(GameState *st) {
             for (int i = n-1; i > 0; i--) { 
                 int j = randn(i+1); 
                 swap(&base[i], &base[j]);
-            } 
+            }
             // copy in
             for (int i = 0; i < n; i++) {
                 st->inRound.queue[st->inRound.queueRemaining++] = base[i];
@@ -658,7 +660,7 @@ Rect border(GameState *st) {
 
     return Rect{
         .pos = ul_corner,
-        .box = vec2(board_width_px, board_height_px), 
+        .box = vec2(board_width_px, board_height_px),
     };
 }
 
@@ -674,6 +676,7 @@ void startRound(GameState *st) {
     /* playSound(sound_ready); */
     st->rw.cursor = 0;
     st->rw.size = 0;
+    st->rw.rewindCount = 0;
     st->inRound.score = 0;
     st->inRound.stored = -1;
     st->inRound.canStore = true;
@@ -704,10 +707,10 @@ void startRound(GameState *st) {
     st->inRound.queueRemaining = 0;
     for (int x = 0; x < 4; x++) {
         // fisher-yates shuffle
-        for (int i = n-1; i > 0; i--) { 
-            int j = randn(i+1); 
+        for (int i = n-1; i > 0; i--) {
+            int j = randn(i+1);
             swap(&base[i], &base[j]);
-        } 
+        }
         // copy in
         for (int i = 0; i < n; i++) {
             st->inRound.queue[st->inRound.queueRemaining++] = base[i];
@@ -722,7 +725,7 @@ void transitionStartRound(GameState *st) {
     st->transition.fn = startRound;
 }
 
-float tickInterval = 1500.0f;
+float tickInterval = 1200.0f;
 
 Vec2 gridBlockPos(GameState *st, Vec2 ul, int x, int y) {
     return vec2(
@@ -771,13 +774,16 @@ void clearLines(GameState *st) {
         }
         tryClearingLine(st, y);
         cleared++;
-        st->inRound.score++;
         st->inRound.shaking += st->inRound.shaking > 1 ? 250.0f : 600.0f;
     }
-    if (cleared > 2) {
-        playSound(sounds.explosion);
-    } else if (cleared > 0) {
-        playSound(sounds.smallExplosion);
+
+    if (cleared > 0) {
+        if (cleared > 2) playSound(sounds.explosion);
+        else playSound(sounds.smallExplosion);
+        st->inRound.combo++;
+        st->inRound.score += cleared * st->inRound.combo;
+    } else {
+        st->inRound.combo = 0;
     }
 }
 
@@ -792,29 +798,6 @@ int placeBlock(GameState *st, Block b) {
     st->inRound.blocks[idx] = b;
     st->inRound.lastBlockInUse = idx;
     return idx;
-}
-
-void placePiece(GameState *st, Piece *p) {
-    Vec2 ul = border(st).pos;
-    for (int i = 0; i < PIECE_BLOCK_TOTAL; i++) {
-        if (!pieces[p->type][p->orientation][i]) continue;
-        Block b = {0};
-        b.inUse = true; 
-        b.onBoard = true; 
-        b.color = colors[p->type];
-        int x = p->x+i%4;
-        int y = p->y+i/4;
-        b.x = x;
-        b.y = y;
-        b.targetPos = gridBlockPos(st, ul, x, y);
-        b.pos = b.targetPos;
-        st->inRound.board[y][x].full = true;
-        st->inRound.board[y][x].blockIndex = placeBlock(st, b);
-        //int idx = placeBlock(st, b);
-        //st->board[y][x].block = &st->inRound.blocks[idx];
-    }
-    clearLines(st);
-    st->inRound.canStore = true;
 }
 
 FlashMessage *freeMessageSlot(GameState *st) {
@@ -834,11 +817,43 @@ FlashMessage *flashMessage(GameState *st, const char *text, Vec2 pos) {
     msg->totalLifetime = 2000.0f;
     msg->lifetime = msg->totalLifetime;
     msg->pos = pos;
+    msg->vel = {};
     return msg;
 }
 
 FlashMessage *flashMessage(GameState *st, const char *text) {
     return flashMessage(st, text, vec2(0, 0));
+}
+
+void placePiece(GameState *st, Piece *p) {
+    Vec2 ul = border(st).pos;
+    for (int i = 0; i < PIECE_BLOCK_TOTAL; i++) {
+        if (!pieces[p->type][p->orientation][i]) continue;
+        Block b = {0};
+        b.inUse = true;
+        b.onBoard = true;
+        b.color = colors[p->type];
+        int x = p->x+i%4;
+        int y = p->y+i/4;
+        b.x = x;
+        b.y = y;
+        b.targetPos = gridBlockPos(st, ul, x, y);
+        b.pos = b.targetPos;
+        st->inRound.board[y][x].full = true;
+        st->inRound.board[y][x].blockIndex = placeBlock(st, b);
+        //int idx = placeBlock(st, b);
+        //st->board[y][x].block = &st->inRound.blocks[idx];
+    }
+    clearLines(st);
+    if (st->inRound.combo > 1) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%dx", st->inRound.combo);
+        int x = p->x+1;
+        int y = p->y-2;
+        FlashMessage *msg = flashMessage(st, buf, gridBlockPos(st, ul, x, y));
+        msg->vel = vec2(0, -1);
+    }
+    st->inRound.canStore = true;
 }
 
 // old == false, new == true
@@ -857,7 +872,7 @@ bool updateTransition(Transition *t, InputData in) {
     default:
         break;
     }
-    if (t->z >= 1) 
+    if (t->z >= 1)
         *t = no_transition;
     return t->z > 0.5f;
 }
@@ -920,7 +935,7 @@ void renderBoard(Renderer *r, GameState *st) {
         if (!inBounds(st->inRound.faller.x+x, st->inRound.faller.y+y) || st->inRound.faller.y+y < 0) {
             continue;
         }
-        
+
         Rect rx = rect(gridBlockPos(st, ul, st->inRound.faller.x+x, st->inRound.faller.y+y), blockSide(st), blockSide(st));
         rx.pos.x -= blockSide(st)/2;
         rx.pos.y -= blockSide(st)/2;
@@ -944,7 +959,7 @@ void renderBoard(Renderer *r, GameState *st) {
                 continue;
             }
             anyInRow = true;
-            
+
             Vec2 p = vec2(
                 (x * (side + pad) + v.x),
                 (y * (side + pad) + v.y)
@@ -969,7 +984,7 @@ void renderGhost(Renderer *r, GameState *st) {
         if (!inBounds(cp.x+x, cp.y+y) || cp.y+y < 0) {
             continue;
         }
-        
+
         Rect rx = rect(gridBlockPos(st, ul, cp.x+x, cp.y+y), blockSide(st), blockSide(st));
         rx.pos.x -= blockSide(st)/2;
         rx.pos.y -= blockSide(st)/2;
@@ -982,6 +997,9 @@ void updateFlashMessages(GameState *st, InputData in) {
         FlashMessage *m = &st->inRound.messages[i];
         if (!m->active) continue;
         m->active = (m->lifetime -= in.dt) > 0;
+        if (m->vel.x != 0 || m->vel.y != 0) {
+            m->pos = add(m->pos, m->vel);
+        }
     }
 }
 
@@ -1018,10 +1036,10 @@ void renderHighScores(Renderer *r, GameState *st) {
             }
         }
         if (hs.score) {
-            drawTextf(r, &ubuntu_m32, app->width*0.22, app->height*0.2+i*32*scale(), opts, "%d. %s", i+1, hs.name);
+            drawTextf(r, &ubuntu_m32, app->width*0.22, app->height*0.2+i*32*scale(), opts, "%*d. %s", 2, i+1, hs.name);
         } else {
             opts.tint.a = 0.5f;
-            drawTextf(r, &ubuntu_m32, app->width*0.22, app->height*0.2+i*32*scale(), opts, "%d. <no entry>", i+1);
+            drawTextf(r, &ubuntu_m32, app->width*0.22, app->height*0.2+i*32*scale(), opts, "%*d. <no entry>", 2, i+1);
         }
         drawTextf(r, &ubuntu_m32, app->width*0.68, app->height*0.2+i*32*scale(), opts, "%04d", hs.score);
     }
@@ -1060,6 +1078,9 @@ void renderScore(Renderer *r, GameState *st) {
     uint32_t hi = st->highScores[0].score;
     snprintf(buf, sizeof(buf), "%04d", st->inRound.score > hi ? st->inRound.score : hi);
     drawText(r, &ubuntu_m32, left, ul.y + border(st).h - scale()*5.0f, buf, opts);
+
+    if (st->rw.rewindCount)
+        drawTextf(r, &ubuntu_m32, ul.x+border(st).w+scale()*24.0f, ul.y + border(st).h - scale()*5.0f, opts, "rw:%2dx", st->rw.rewindCount);
 }
 
 void renderQueue(Renderer *r, GameState *st) {
@@ -1084,7 +1105,7 @@ void renderQueue(Renderer *r, GameState *st) {
                 continue;
             }
             anyInRow = true;
-            
+
             Vec2 p = vec2(
                 (x * (side + pad) + v.x),
                 (y * (side + pad) + v.y)
@@ -1331,6 +1352,8 @@ bool updateInRound(GameState *st, InputData in) {
         replayData.replayInputs[replayData.len++] = in;
     }
 
+    bool rwHeld = st->rw.rewinding;
+
     for (int i = 0; i < in.numKeyEvents; i++) {
         KeyEvent e = keyEvent(&in, i);
         if (e.state.down) {
@@ -1340,6 +1363,8 @@ bool updateInRound(GameState *st, InputData in) {
                 st->inRound.held.left = true;
             } else if (e.key == st->settings.controls.right) {
                 st->inRound.held.right = true;
+            } else if (e.key == st->settings.controls.rewind) {
+                rwHeld = true;
             }
         } else if (e.state.up) {
             if (e.key == st->settings.controls.down) {
@@ -1348,6 +1373,8 @@ bool updateInRound(GameState *st, InputData in) {
                 st->inRound.held.left = false;
             } else if (e.key == st->settings.controls.right) {
                 st->inRound.held.right = false;
+            } else if (e.key == st->settings.controls.rewind) {
+                rwHeld = false;
             }
         }
     }
@@ -1355,22 +1382,21 @@ bool updateInRound(GameState *st, InputData in) {
     if (st->rw.rewinding) {
         st->rw.size -= st->rw.rwFactor;
         if (st->rw.size < 0) st->rw.size = 0;
-        if (keyState(&in, st->settings.controls.rewind).up || st->rw.size == 0) {
+        if (!rwHeld || st->rw.size == 0) {
             stopSound(sounds.whooop);
             st->rw.rewinding = false;
             for (int i = 0; i < sizeof(st->inRound.held); i++)
                 ((char*)(&st->inRound.held))[i] = 0;
         } else {
             st->inRound = st->rw.savedStates[(st->rw.cursor + st->rw.size) % SANDS_OF_TIME];
-            /* in = savedInputs[(st->rw.cursor + size)  % SANDS_OF_TIME]; */
         }
     } else {
-        /* savedInputs[(st->rw.cursor + size) % SANDS_OF_TIME] = in; */
         st->rw.savedStates[(st->rw.cursor + st->rw.size) % SANDS_OF_TIME] = st->inRound;
         if (st->rw.size < SANDS_OF_TIME) st->rw.size++;
         else st->rw.cursor = (st->rw.cursor+1) % SANDS_OF_TIME;
-        if (st->rw.size >= RW_THRESHOLD && keyState(&in, st->settings.controls.rewind).down) {
+        if (rwHeld && st->rw.size >= RW_THRESHOLD) {
             st->rw.rewinding = true;
+            st->rw.rewindCount++;
             playSound(sounds.whooop);
         }
     }
@@ -1476,9 +1502,9 @@ bool updateInRound(GameState *st, InputData in) {
 	if (st->inRound.shaking > 0)
     	st->inRound.shaking -= in.dt;
     st->inRound.droptick += in.dt;
-    float tick = tickInterval - st->inRound.score*20;
-    if (tick < 200) {
-        tick = 200;
+    float tick = tickInterval - st->inRound.score*25 - st->rw.rewindCount*100;
+    if (tick < MIN_TICK) {
+        tick = MIN_TICK;
     }
 
     // if the faller moved or rotated...
@@ -1487,19 +1513,22 @@ bool updateInRound(GameState *st, InputData in) {
         Piece f = st->inRound.faller;
         if (!tryMove(st, &f, 0, 1)) {
             // ...reset droptick
-            st->inRound.droptick = tick/2;
+            st->inRound.droptick = 0;
         }
     }
     if (st->inRound.droptick > tick) {
-        st->inRound.droptick = 0;
         if (!tryMove(st, &st->inRound.faller, 0, 1)) {
+            if (st->inRound.droptick > tick * 2) {
             placePiece(st, &st->inRound.faller);
             if (!spawnFaller(st)) {
                 gameOver(st);
                 return true;
             }
             playSound(sounds.menu);
-        }
+            st->inRound.droptick = 0;
+            }
+        } else
+            st->inRound.droptick = 0;
     }
     Vec2 ul = border(st).pos;
     for (int i = 0; i < MAX_BLOCKS; i++) {
@@ -1620,8 +1649,8 @@ bool updateHighScores(GameState *st, InputData in) {
             KeyEvent e = keyEvent(&in, i);
             if (!e.state.down) continue;
             if (e.key >= SDLK_SPACE && e.key <= SDLK_z && st->highScoreNameCursor < sizeof(st->highScores[i].name)-1) {
-                name[st->highScoreNameCursor++] = e.key; 
-                name[st->highScoreNameCursor] = '\0'; 
+                name[st->highScoreNameCursor++] = e.key;
+                name[st->highScoreNameCursor] = '\0';
             } else if (e.key == SDLK_BACKSPACE && st->highScoreNameCursor) {
                 name[--st->highScoreNameCursor] = '\0';
             } else if (e.key == SDLK_RETURN && st->highScoreNameCursor) {

@@ -42,6 +42,7 @@ struct FlashMessage {
     bool active;
     char text[255];
     Vec2 pos;
+    Vec2 vel = {};
     float lifetime;
     float totalLifetime = 2.0f;
 };
@@ -125,6 +126,7 @@ struct InRoundState {
     uint32_t score;
     float droptick;
 
+    int combo = 0;
     int stored;
     bool canStore;
 
@@ -164,6 +166,7 @@ struct RewindBuffer {
     InRoundState savedStates[SANDS_OF_TIME];
     /* InputData savedInputs[SANDS_OF_TIME]; */
     bool rewinding = false;
+    int rewindCount = 0;
     int rwFactor = 2;
 };
 
@@ -195,6 +198,7 @@ struct GameState {
     // IN_ROUND
     InRoundState inRound = {};
     RewindBuffer rw = {};
+
 
     // OPTIONS
     int currentMenu = 0;
