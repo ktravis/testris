@@ -18,8 +18,10 @@ void *watchLoop(Watcher *w) {
 typedef void *(*threadFunc)(void*);
 #endif
 
-#define WINDOW_WIDTH  600
-#define WINDOW_HEIGHT 800
+#define WINDOW_WIDTH   600
+#define WINDOW_HEIGHT  800
+#define MAX_FRAME_RATE 120
+#define MIN_FRAME_TIME (1000.0/MAX_FRAME_RATE)
 
 Renderer r;
 
@@ -50,6 +52,7 @@ bool step() {
     renderGameState(&r, &st);
 
     swapWindow(&app.window);
+    if (in.dt < MIN_FRAME_TIME) SDL_Delay((uint32_t)(MIN_FRAME_TIME - in.dt));
     return result;
 }
 
@@ -123,13 +126,6 @@ int main(int argc, char *argv[]) {
                 log("failed to update shaders");
             }
         }
-
-        //if (updated(&watcher, levelWatch)) {
-            //debug("LEVELS UPDATED");
-            //if (!loadLevel(st, "assets/levels/1.txt")) {
-                //log("level loading failed");
-            //}
-        //}
     }
     cleanupWatcher(&watcher);
     cleanupRenderer(&r);
