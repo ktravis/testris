@@ -18,7 +18,7 @@
       .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
       div.emscripten { text-align: center; }      
       /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
-      canvas.emscripten { border: 0px none; background-color: black; }
+      canvas.emscripten { border: 0px none; outline: none; background-color: black; }
 
       #changes { color: dimgrey; }
       .spinner {
@@ -61,7 +61,7 @@
     <div class="emscripten">
       <progress value="0" max="100" id="progress" hidden=1></progress>  
     </div>
-    <canvas class="emscripten" id="canvas" tabindex="0"></canvas>
+    <canvas class="emscripten" id="canvas" tabindex="-1"></canvas>
     <div class="center"><a href="https://github.com/ktravis/testris">view on github</a></div>
     <div class="center"><pre id="changes">%CHANGES_GO_HERE%</pre></div>
     <script type='text/javascript'>
