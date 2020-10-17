@@ -2,6 +2,8 @@
 
 **Play in your browser, [here!](https://ktravis.github.io/testris)**
 
+![title](assets/title-crop.gif)
+
 I made a custom engine on SDL2 for mostly 2d rendering (though 3d is supported, it just doesn't have much work put into it yet). This is a test of a few different systems:
 
 - scenes
